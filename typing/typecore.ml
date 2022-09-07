@@ -23,18 +23,25 @@ open Typedtree
 open Btype
 open Ctype
 
+type comprehension_type =
+  | List_comprehension
+  | Array_comprehension
+
 type type_forcing_context =
   | If_conditional
   | If_no_else_branch
   | While_loop_conditional
   | While_loop_body
-  | In_comprehension_argument
   | For_loop_start_index
   | For_loop_stop_index
   | For_loop_body
   | Assert_condition
   | Sequence_left_hand_side
   | When_guard
+  | Comprehension_in_iterator of comprehension_type
+  | Comprehension_for_start
+  | Comprehension_for_stop
+  | Comprehension_when
 
 type type_expected = {
   ty: type_expr;
@@ -146,6 +153,7 @@ type error =
   | Unexpected_existential of existential_restriction * string * string list
   | Invalid_interval
   | Invalid_for_loop_index
+  | Invalid_comprehension_for_range_iterator_index
   | No_value_clauses
   | Exception_pattern_disallowed
   | Mixed_value_and_exception_patterns_under_guard
@@ -177,6 +185,7 @@ type error =
   | Uncurried_function_escapes
   | Local_return_annotation_mismatch of Location.t
   | Bad_tail_annotation of [`Conflict|`Not_a_tailcall]
+  | Multiply_bound_comprehension_variables of string list
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error
@@ -692,6 +701,21 @@ let maybe_add_pattern_variables_ghost loc_let env pv =
        end
     ) pv env
 
+let iter_pattern_variables_type f : pattern_variable list -> unit =
+  List.iter (fun {pv_type; _} -> f pv_type)
+
+let add_pattern_variables ?check ?check_as env pv =
+  List.fold_right
+    (fun {pv_id; pv_mode; pv_type; pv_loc; pv_as_var; pv_attributes} env ->
+       let check = if pv_as_var then check_as else check in
+       Env.add_value ?check ~mode:pv_mode pv_id
+         {val_type = pv_type; val_kind = Val_reg; Types.val_loc = pv_loc;
+          val_attributes = pv_attributes;
+          val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+         } env
+    )
+    pv env
+
 let enter_variable ?(is_module=false) ?(is_as_variable=false) loc name mode ty
     attrs =
   if List.exists (fun {pv_id; _} -> Ident.name pv_id = name.txt)
@@ -1158,20 +1182,39 @@ let split_cases env cases =
     | vp, ep -> add_case vals case vp, add_case exns case ep
   ) cases ([], [])
 
-let type_for_loop_index ~loc ~env ~param ty =
+(* Returns a pair of the identifier for this index and, optionally, the
+   corresponding pattern variable; we can omit the pattern variable, and thus
+   never add the identifier to the environment, if we are synthesizing a dummy
+   name for an [_] ([Ppat_any]). *)
+let type_for_loop_like_index ~error ~loc ~env ~param =
   match param.ppat_desc with
-  | Ppat_any -> Ident.create_local "_for", env
+  | Ppat_any -> Ident.create_local "_for", None
   | Ppat_var {txt} ->
-      Env.enter_value txt
-        {val_type = instance ty;
-          val_attributes = [];
-          val_kind = Val_reg;
-          val_loc = loc;
-          val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
-        } env
-        ~check:(fun s -> Warnings.Unused_for_index s)
+      let var = Ident.create_local txt in
+      var, Some { pv_id         = var
+                ; pv_mode       = Value_mode.global
+                    (* It's always safe to put [int]s at the global mode, as
+                       they are immediates and so are indistinguishable no
+                       matter where they're allocated; global is better than
+                       local because it's the bottom of the lattice and can
+                       submode up freely *)
+                ; pv_type       = instance Predef.type_int
+                    (* CR aspectorzabusky: Do we need [instance] here? *)
+                ; pv_loc        = loc
+                ; pv_as_var     = false
+                ; pv_attributes = [] }
   | _ ->
-      raise (Error (param.ppat_loc, env, Invalid_for_loop_index))
+      raise (Error (param.ppat_loc, env, error))
+
+let type_for_loop_index ~loc ~env ~param =
+  let check s = Warnings.Unused_for_index s in
+  let var, pv =
+    type_for_loop_like_index ~error:Invalid_for_loop_index ~loc ~env ~param
+  in
+  var, add_pattern_variables ~check ~check_as:check env (Option.to_list pv)
+
+let type_comprehension_for_range_iterator_index =
+  type_for_loop_like_index ~error:Invalid_comprehension_for_range_iterator_index
 
 (* Type paths *)
 
@@ -2484,21 +2527,6 @@ let check_unused ?(lev=get_current_level ()) env expected_ty cases =
       | r -> r)
     cases
 
-let iter_pattern_variables_type f : pattern_variable list -> unit =
-  List.iter (fun {pv_type; _} -> f pv_type)
-
-let add_pattern_variables ?check ?check_as env pv =
-  List.fold_right
-    (fun {pv_id; pv_mode; pv_type; pv_loc; pv_as_var; pv_attributes} env ->
-       let check = if pv_as_var then check_as else check in
-       Env.add_value ?check ~mode:pv_mode pv_id
-         {val_type = pv_type; val_kind = Val_reg; Types.val_loc = pv_loc;
-          val_attributes = pv_attributes;
-          val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
-         } env
-    )
-    pv env
-
 let type_pattern category ~lev ~alloc_mode env spat expected_ty =
   reset_pattern true;
   let new_env = ref env in
@@ -2993,9 +3021,9 @@ let rec is_nonexpansive exp =
   | Texp_apply _
   | Texp_try _
   | Texp_setfield _
-  | Texp_while _
   | Texp_list_comprehension _
-  | Texp_arr_comprehension _
+  | Texp_array_comprehension _
+  | Texp_while _
   | Texp_for _
   | Texp_send _
   | Texp_instvar _
@@ -3172,8 +3200,11 @@ let rec approx_type env sty =
       approx_type env sty
   | _ -> newvar ()
 
+
 let rec type_approx env sexp =
-  match sexp.pexp_desc with
+  match Extensions.extension_expr_of_expr sexp with
+  | Some eexp -> type_approx_extension eexp
+  | None      -> match sexp.pexp_desc with
     Pexp_let (_, _, e) -> type_approx env e
   | Pexp_fun (p, _, spat, e) ->
       let marg =
@@ -3221,6 +3252,9 @@ let rec type_approx env sexp =
       ({ pexp_desc = Pexp_extension({txt = "extension.escape"}, PStr []) },
        [Nolabel, e]) ->
     type_approx env e
+  | _ -> newvar ()
+
+and type_approx_extension : Extensions.extension_expr -> _ = function
   | _ -> newvar ()
 
 (* Check that all univars are safe in a type. Both exp.exp_type and
@@ -3327,7 +3361,7 @@ let check_partial_application ~statement exp =
             | Texp_ident _ | Texp_constant _ | Texp_tuple _
             | Texp_construct _ | Texp_variant _ | Texp_record _
             | Texp_field _ | Texp_setfield _ | Texp_array _
-            | Texp_list_comprehension _ | Texp_arr_comprehension _
+            | Texp_list_comprehension _ | Texp_array_comprehension _
             | Texp_while _ | Texp_for _ | Texp_instvar _
             | Texp_setinstvar _ | Texp_override _ | Texp_assert _
             | Texp_lazy _ | Texp_object _ | Texp_pack _ | Texp_unreachable
@@ -3513,11 +3547,15 @@ let unify_exp env exp expected_ty =
    the "expected type" provided by the context. *)
 
 let rec is_inferred sexp =
-  match sexp.pexp_desc with
+  match Extensions.extension_expr_of_expr sexp with
+  | Some eexp -> is_inferred_extension eexp
+  | None      -> match sexp.pexp_desc with
   | Pexp_ident _ | Pexp_apply _ | Pexp_field _ | Pexp_constraint _
   | Pexp_coerce _ | Pexp_send _ | Pexp_new _ -> true
   | Pexp_sequence (_, e) | Pexp_open (_, e) -> is_inferred e
   | Pexp_ifthenelse (_, e1, Some e2) -> is_inferred e1 && is_inferred e2
+  | _ -> false
+and is_inferred_extension : Extensions.extension_expr -> _ = function
   | _ -> false
 
 (* check if the type of %apply or %revapply matches the type expected by
@@ -3599,7 +3637,11 @@ and type_expect_
     submode ~env ~loc:exp.exp_loc mode expected_mode;
     exp
   in
-  match sexp.pexp_desc with
+  (* CR aspectorzabusky: How's this indentation? *)
+  match Extensions.extension_expr_of_expr sexp with
+  | Some eexp ->
+      type_expect_extension ~loc ~env ~expected_mode ~ty_expected eexp
+  | None      -> match sexp.pexp_desc with
   | Pexp_ident lid ->
       let path, mode, desc, kind = type_ident env ~recarg lid in
       let exp_desc =
@@ -4286,7 +4328,7 @@ and type_expect_
           (mk_expected ~explanation:For_loop_stop_index Predef.type_int)
       in
       let for_id, new_env =
-        type_for_loop_index ~loc ~env ~param Predef.type_int
+        type_for_loop_index ~loc ~env ~param
       in
       let new_env, for_region =
         if is_local_returning_expr sbody then new_env, false
@@ -4979,15 +5021,6 @@ and type_expect_
           exp_env = env }
       | _ -> raise (Error (loc, env, Probe_is_enabled_format))
     end
-  | Pexp_extension (({ txt = ("extension.list_comprehension"
-                            | "extension.arr_comprehension"); _ },
-                    _ ) as extension)  ->
-    if Clflags.Extension.(is_enabled Comprehensions) then
-      let ext_expr = Extensions.extension_expr_of_payload ~loc extension in
-      type_extension ~loc ~env ~ty_expected ~expected_mode ~sexp ext_expr
-    else
-      raise
-        (Error (loc, env, Extension_not_enabled(Clflags.Extension.Comprehensions)))
   | Pexp_extension ext ->
     raise (Error_forward (Builtin_attributes.error_of_extension ext))
 
@@ -6216,8 +6249,10 @@ and type_let
     | _ ->
         false
   in
-  let rec sexp_is_fun e =
-    match e.pexp_desc with
+  let rec sexp_is_fun sexp =
+    match Extensions.extension_expr_of_expr sexp with
+    | Some eexp -> eexp_is_fun eexp
+    | None      -> match sexp.pexp_desc with
     | Pexp_fun _ | Pexp_function _ -> true
     | Pexp_constraint (e, _)
     | Pexp_newtype (_, e)
@@ -6225,6 +6260,8 @@ and type_let
       ({ pexp_desc = Pexp_extension(
           {txt = "extension.local"|"ocaml.local"|"local"}, PStr []) },
        [Nolabel, e]) -> sexp_is_fun e
+    | _ -> false
+  and eexp_is_fun : Extensions.extension_expr -> _ = function
     | _ -> false
   in
   let vb_is_fun { pvb_expr = sexp; _ } = sexp_is_fun sexp in
@@ -6559,112 +6596,284 @@ and type_andops env sarg sands expected_ty =
   let let_arg, rev_ands = loop env sarg (List.rev sands) expected_ty in
   let_arg, List.rev rev_ands
 
-  and type_extension ~loc ~env ~ty_expected ~expected_mode ~sexp = function
-  | Extensions.Eexp_list_comprehension (sbody, comp_typell) ->
-    type_comprehension ~loc ~env ~ty_expected ~expected_mode
-      ~sexp ~sbody ~comp_typell
-      ~container_type:Predef.type_list ~build:(fun body comp_type ->
-          Texp_list_comprehension (body, comp_type))
-| Extensions.Eexp_arr_comprehension (sbody, comp_typell) ->
-    type_comprehension ~loc ~env ~ty_expected ~expected_mode
-      ~sexp ~sbody ~comp_typell
-      ~container_type:Predef.type_array ~build:(fun body comp_type ->
-          Texp_arr_comprehension (body, comp_type))
+and type_expect_extension ~loc ~env ~ty_expected
+  : Extensions.extension_expr -> _ = function
+  | Eexp_comprehension cexpr ->
+      type_comprehension_expr ~loc ~env ~ty_expected cexpr
 
-  and type_comprehension ~loc ~env ~ty_expected ~(expected_mode : expected_mode)
-      ~sexp ~sbody ~comp_typell
-      ~container_type ~build =
-    if !Clflags.principal then begin_def ();
-    let without_arr_ty = Ctype.newvar ()  in
-    unify_exp_types loc env
-      (instance (container_type without_arr_ty)) (instance ty_expected);
-    if !Clflags.principal then begin
-      end_def();
-      generalize_structure without_arr_ty;
-    end;
-    let env = Env.add_lock Value_mode.global env in
-    let comp_type, new_env =
-      type_comprehension_list ~loc ~env ~container_type ~comp_typell
-    in
-    let body = type_expect new_env mode_global sbody (mk_expected without_arr_ty) in
-    re {
-      exp_desc = build body comp_type;
-      exp_loc = loc; exp_extra = [];
-      exp_type = instance (container_type body.exp_type);
-      exp_mode = expected_mode.mode;
-      exp_attributes = sexp.pexp_attributes;
-      exp_env = env }
+and type_comprehension_expr ~loc ~env ~expected_mode:_ ~ty_expected cexpr =
+  let open Extensions.Comprehensions in
+  (* CR aspectorzabusky: The first three things here are a bunch of pieces of
+     linked data that always vary together, but we need the different pieces.
+     Is there a more idiomatic approach to bundling these up? *)
+  (* - [comprehension_type]:
+         For printing nicer error messages.
+     - [container_type]:
+         For type checking [for]-[in] iterators and the type of the whole
+         comprehension.
+     - [make_texp]:
+         For building the final typedtree node containing the translated
+         comprehension.
+     - [{body = sbody; clauses}]:
+         The actual comprehension to be translated. *)
+  let comprehension_type, container_type, make_texp, {body = sbody; clauses} =
+    match cexpr with
+    | Cexp_list_comprehension comp ->
+        List_comprehension,
+        Predef.type_list,
+        (fun tcomp -> Texp_list_comprehension tcomp),
+        comp
+    | Cexp_array_comprehension comp ->
+        Array_comprehension,
+        Predef.type_array,
+        (fun tcomp -> Texp_array_comprehension tcomp),
+        comp
+  in
+  if !Clflags.principal then begin_def ();
+  let element_ty = Ctype.newvar ()  in
+  unify_exp_types
+    loc
+    env
+    (* CR aspectorzabusky: I deleted a call to [instance] here; I'm not sure if
+       I can delete the call to [instance] on the next line, but it seems to
+       work.  The call to instance in the return value seems to be necessary, as
+       test output gets worse if I delete it.  How should I be thinking about
+       this? *)
+    (container_type element_ty)
+    (instance ty_expected);
+  if !Clflags.principal then begin
+    end_def();
+    generalize_structure element_ty;
+  end;
+  (* What modes should comprehensions use?  Let us be generic over the sequence
+     type we use for comprehensions, calling it [sequence] (standing for either
+     [list] or [array]) and writing [[? ... ?]].  If we ignore modes, we may
+     consider a comprehension as having been typechecked per the following
+     modeless rule:
 
-  and type_comprehension_clause ~body_env ~env ~loc ~container_type
-      ~(comp_type : Extensions.comprehension_clause) =
-    let comp, env = match comp_type with
-    | From_to (param, slow, shigh, dir) ->
-      let low = type_expect env mode_global slow
-          (mk_expected ~explanation:For_loop_start_index Predef.type_int) in
-      let high = type_expect env mode_global shigh
-          (mk_expected ~explanation:For_loop_stop_index Predef.type_int) in
-      let id, new_env =
-        type_for_loop_index ~loc ~env:body_env ~param Predef.type_int
+     {[
+       G |- a type
+       G |- b type
+       G |- seq : a sequence
+       G |- low : int
+       G |- high : int
+       G, x : a, i : int |- cond : bool
+       G, x : a, i : int |- body : b
+       -----------------------------------------------------------------------
+       G |- [? body for x in seq and i = low to high when cond ?] : b sequence
+     ]}
+
+     To reason about modes, we have to separately consider the modes of [body],
+     [x], [seq], [i], [low], [high], [cond], and the entire comprehension.
+
+     - The modes of [i], [low], [high], and [cond] are simple: We may be
+       *polymorphic* in each of them individually.  As [int] and [bool] are
+       immediates, values of these types may freely be used at any mode.  We
+       thus don't need to consider these modes any further.
+
+     - The modes of [x] and [seq] must be *the same as each other*, as we do not
+       distinguish between the "spine mode" and the "value mode" for types; a
+       list or array must be as local or as global as its elements are.  (If
+       these were separate concepts, we could unconditionally a list or array
+       "spine-locally", and handle [x]'s mode separately.)  We'll refer to this
+       as the "input mode" below.
+
+     - By the same token, the modes of [body] and the entire comprehension must
+       be *the same as each other*, as we are generating a sequence made up of
+       the result of evaluating [body] repeatedly.  We'll refer to this as the
+       "output mode" below.
+
+     - The input mode must be *below* the output mode.  Clearly, the two can be
+       the same as each other; and if the input is local, then the output surely
+       cannot be global, as it can refer to the input and we cannot have heap
+       pointers pointing into the stack.  However, if the input is global, then
+       it is perfectly safe for a local sequence to contain references to it,
+       and so there is no harm in allowing the output to be local.
+
+     Thus, the question turns on what mode we are to use for the output, the
+     mode of [body] and the entire comprehension.  While it would be nice to be
+     polymorphic here, *we are unfortunately currently constrained to check
+     comprehensions at global mode*.  The reasons for this are separate for list
+     and array comprehensions:
+
+     - For list comprehensions: List comprehensions are desugared in terms of
+       functions from [CamlinternalComprehension]; as regular OCaml functions,
+       they cannot cannot have the desired (or any) mode polymorphism.  The
+       input can either be marked as [local_] (in which case we cannot create a
+       global list with a list comprehension) or not (in which case we cannot
+       use list comprehensions to iterate over local lists).  Similarly, the
+       output can either be marked as [local_] or not, and that fixes where the
+       allocation is to happen.
+
+     - For array comprehensions: We only have global arrays, and do not
+       currently allow there to be such a thing as a local array at all.
+
+     This fully determines the mode situation.  Thus, until we loosen either of
+     these restrictions, we do not pass modes to other functions for
+     typechecking comprehensions.
+
+     In order to understand the reasoning about modes for arrays, anywhere we
+     need to provide modes while typechecking comprehensions, we will reference
+     this comment by its incipit (the initial question, right at the start). *)
+  let new_env, comp_clauses =
+    type_comprehension_clauses
+      ~loc ~env ~comprehension_type ~container_type clauses
+  in
+  let comp_body =
+    (* To understand why comprehension bodies are checked at [mode_global], see
+       "What modes should comprehensions use?", above *)
+    type_expect new_env mode_global sbody (mk_expected element_ty)
+  in
+  re { exp_desc       = make_texp { comp_body ; comp_clauses }
+     ; exp_loc        = loc
+     ; exp_extra      = []
+     ; exp_type       = instance (container_type comp_body.exp_type)
+     ; exp_attributes = []
+         (* CR aspectorzabusky: These should come from somewhere *)
+     ; exp_mode       = Value_mode.global
+         (* To understand why comprehensions are put at [mode_global], see
+            "What modes should comprehensions use?", above *)
+     ; exp_env        = env }
+
+and type_comprehension_clauses
+      ~loc ~env ~comprehension_type ~container_type clauses =
+  List.fold_left_map
+    (type_comprehension_clause ~loc ~comprehension_type ~container_type)
+    env
+    clauses
+
+and type_comprehension_clause ~loc ~comprehension_type ~container_type env
+  : Extensions.Comprehensions.clause -> _ = function
+  | For bindings ->
+      let tbindings, pvss =
+        List.split @@
+        List.map
+          (type_comprehension_binding
+             ~loc ~comprehension_type ~container_type ~env)
+          bindings
       in
-      From_to(id, param, low, high, dir), new_env
-    | In (param, siter) ->
-      let item_ty = newvar() in
-      let iter_ty = instance (container_type item_ty) in
-      let iter = type_expect env mode_global siter
-          (mk_expected ~explanation:In_comprehension_argument iter_ty) in
-      let pat =
-        let alloc_mode = simple_pat_mode Value_mode.global in
-        type_pat Value ~no_existentials:In_self_pattern ~alloc_mode (ref env) param item_ty
+      (* CR aspectorzabusky: Is there a nicer way to test for redundant
+         variables?  I think it's as efficient as the [Multiply_bound_variable]
+         check, although that one is checked earlier, as it's a linear scan on
+         *each* variable. *)
+      let pvs = List.concat pvss in
+      (* Get the location of the *last* duplicate of the given variable *)
+      let rec duplicate_loc id dup_loc rest = function
+        | [] -> dup_loc, List.rev rest
+        | pv :: pvs ->
+            let dup_loc, rest =
+              (* CR aspectorzabusky: Can I use [Ident.equal] here, or do I need
+                 [Ident.name id = Ident.name pv.pv_id]? *)
+              if Ident.equal id pv.pv_id
+              then Some pv.pv_loc, rest
+              else dup_loc,        pv :: rest
+            in
+            duplicate_loc id dup_loc rest pvs
       in
-      let pv = !pattern_variables in
+      let rec duplicates dup_loc dups = function
+        | [] -> dup_loc, List.rev dups
+        | pv :: pvs ->
+            let id = pv.pv_id in
+            match duplicate_loc id None [] pvs with
+            | None, pvs ->
+                duplicates dup_loc dups pvs
+            | Some dup_loc, pvs ->
+                duplicates (Some dup_loc) (Ident.name id :: dups) pvs
+      in
+      begin
+        match duplicates None [] pvs with
+        | None,         [] -> ()
+        | Some dup_loc, (_ :: _ as dups) ->
+            raise
+              (Error(dup_loc, env, Multiply_bound_comprehension_variables dups))
+        | None, _ :: _ | Some _, [] ->
+            fatal_error "Comprehension for-and duplicate variable check \
+                         returned inconsistent results"
+      end;
+      let env =
+        let check s = Warnings.Unused_var s in
+        add_pattern_variables ~check ~check_as:check env pvs
+      in
+      env, Texp_comp_for tbindings
+  | When cond ->
+      let tcond =
+        (* To understand why [when] conditions can be checked at an arbitrary
+           mode, see "What modes should comprehensions use?" in
+           [type_comprehension_expr]*)
+        type_expect
+          env
+          (mode_var ())
+          cond
+          (mk_expected ~explanation:Comprehension_when Predef.type_bool)
+      in
+      env, Texp_comp_when tcond
+
+and type_comprehension_binding
+      ~loc
+      ~comprehension_type
+      ~container_type
+      ~env
+      Extensions.Comprehensions.{ pattern; iterator; attributes } =
+  let comp_cb_iterator, pvs =
+    type_comprehension_iterator
+      ~loc ~env ~comprehension_type ~container_type pattern iterator
+  in
+  { comp_cb_iterator ; comp_cb_attributes = attributes }, pvs
+
+and type_comprehension_iterator
+      ~loc ~env ~comprehension_type ~container_type pattern
+  : Extensions.Comprehensions.iterator -> _ = function
+  | Range { start; stop; direction } ->
+      let tbound ~explanation bound =
+        (* To understand why [for ... = ...] iterator range endpoints can be
+           checked at an arbitrary mode, see "What modes should comprehensions
+           use?" in [type_comprehension_expr]*)
+        type_expect
+          env
+          (mode_var ())
+          bound
+          (mk_expected ~explanation Predef.type_int)
+      in
+      let start = tbound ~explanation:Comprehension_for_start start in
+      let stop  = tbound ~explanation:Comprehension_for_stop  stop  in
+      let ident, opv =
+        type_comprehension_for_range_iterator_index
+          ~loc
+          ~env
+          ~param:pattern
+      in
+      ( Texp_comp_range { ident; pattern; start; stop; direction }
+      , Option.to_list opv )
+  | In seq ->
+      let item_ty = newvar () in
+      let seq_ty = container_type item_ty in
+      let sequence =
+        (* To understand why we can currently only iterate over [mode_global]
+           (and not local) sequences, see "What modes should comprehensions
+           use?" in [type_comprehension_expr]*)
+        type_expect
+          env
+          mode_global
+          seq
+          (mk_expected
+             ~explanation:(Comprehension_in_iterator comprehension_type)
+             seq_ty)
+      in
+      let pattern =
+        (* To understand why we can currently only provide [global] bindings for
+           the contents of sequences comprehensions iterate over, see "What
+           modes should comprehensions use?" in [type_comprehension_expr]*)
+        type_pat
+          Value
+          ~no_existentials:In_self_pattern
+          ~alloc_mode:(simple_pat_mode Value_mode.global)
+          (ref env)
+          pattern
+          item_ty
+      in
+      let pvs = !pattern_variables in
       pattern_variables := [];
-      let new_env =
-        List.fold_right
-          (fun {pv_id; pv_type; pv_loc; pv_as_var=_; pv_attributes}
-              env ->
-            Env.add_value pv_id
-              { val_type = pv_type;
-                val_attributes = pv_attributes;
-                val_kind = Val_reg;
-                val_loc = pv_loc;
-                val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
-              } env
-              (*Perhaps this should be Unused_var_strict if some of the pattern
-                is used.*)
-              ~check:(fun s -> Warnings.Unused_var s))
-        pv body_env
-      in
-      In(pat, iter), new_env
-    in
-    comp, env
-
-  and type_comprehension_block ~env ~loc
-      ~comp:({clauses; guard} : Extensions.comprehension) ~container_type  =
-    let new_comps, new_env = List.fold_right
-      (fun comp_type (comps, body_env)->
-        let comp, new_env =
-          type_comprehension_clause ~body_env ~env ~loc
-            ~container_type ~comp_type in
-        comp::comps, new_env)
-      clauses
-      ([], env)
-    in
-    let new_guard = Option.map (fun gu -> type_expect new_env mode_global gu
-      (mk_expected ~explanation:When_guard Predef.type_bool)) guard in
-    {clauses=new_comps; guard=new_guard}, new_env
-
-  and type_comprehension_list ~loc ~env ~container_type ~comp_typell =
-    let comps, new_env = List.fold_right
-      (fun comp (comps, env) ->
-          let new_comps, new_env  =
-            type_comprehension_block
-              ~env ~loc ~comp ~container_type
-          in
-          new_comps::comps, new_env
-      )
-      comp_typell ([], env)
-    in
-    comps, new_env
+      Texp_comp_in { pattern; sequence }, pvs
 
 (* Typing of toplevel bindings *)
 
@@ -6783,7 +6992,8 @@ let report_pattern_type_clash_hints
   | _ -> []
 
 let report_type_expected_explanation expl ppf =
-  let because expl_str = fprintf ppf "@ because it is in %s" expl_str in
+  let because1 expl_fmt = fprintf ppf "@ because it is in %(%s%)" expl_fmt in
+  let because = because1 "%s" in
   match expl with
   | If_conditional ->
       because "the condition of an if-statement"
@@ -6793,8 +7003,6 @@ let report_type_expected_explanation expl ppf =
       because "the condition of a while-loop"
   | While_loop_body ->
       because "the body of a while-loop"
-  | In_comprehension_argument ->
-    because "the iteration argument of a comprehension"
   | For_loop_start_index ->
       because "a for-loop start index"
   | For_loop_stop_index ->
@@ -6807,6 +7015,17 @@ let report_type_expected_explanation expl ppf =
       because "the left-hand side of a sequence"
   | When_guard ->
       because "a when-guard"
+  | Comprehension_in_iterator comp_ty ->
+      because1 "a for-in iterator in %s comprehension"
+        (match comp_ty with
+         | List_comprehension  -> "a list"
+         | Array_comprehension -> "an array")
+  | Comprehension_for_start ->
+      because "a range-based for iterator start index in a comprehension"
+  | Comprehension_for_stop ->
+      because "a range-based for iterator stop index in a comprehension"
+  | Comprehension_when ->
+      because "a when-clause in a comprehension"
 
 let escaping_hint reason (context : Env.escaping_context option) =
   match reason, context with
@@ -7123,6 +7342,10 @@ let report_error ~loc env = function
   | Invalid_for_loop_index ->
       Location.errorf ~loc
         "@[Invalid for-loop index: only variables and _ are allowed.@]"
+  | Invalid_comprehension_for_range_iterator_index ->
+      Location.errorf ~loc
+        "@[Invalid pattern in comprehension for-range iterator: \
+         only variables and _ are allowed.@]"
   | No_value_clauses ->
       Location.errorf ~loc
         "None of the patterns in this 'match' expression match values."
@@ -7274,6 +7497,25 @@ let report_error ~loc env = function
         (match err with
          | `Conflict -> "is contradictory"
          | `Not_a_tailcall -> "is not on a tail call")
+  | Multiply_bound_comprehension_variables names ->
+      let plural = match names with
+        | [_] -> false
+        | _   -> true
+      in
+      Location.errorf ~loc
+        "The variable%s%s %s bound several times in this comprehension's \
+         for-and binding"
+        (if plural then "s" else "")
+        (let rec go sep = function
+           | [] -> ""
+           | name :: names ->
+               let sep' = match names with
+                 | [_] -> sep ^ "and "
+                 | _ -> ", "
+               in
+               sep ^ name ^ go sep' names
+         in go " " names)
+        (if plural then "are" else "is")
 
 let report_error ~loc env err =
   Printtyp.wrap_printing_env ~error:true env
