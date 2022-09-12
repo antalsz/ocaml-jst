@@ -2461,6 +2461,8 @@ expr:
       { mkuplus ~oploc:$loc($1) $1 $2 }
 ;
 
+%inline dot_hash: DOT HASH { () }
+
 simple_expr:
   | LPAREN seq_expr RPAREN
       { reloc_exp ~loc:$sloc $2 }
@@ -2470,9 +2472,17 @@ simple_expr:
       { mkexp_constraint ~loc:$sloc $2 $3 }
   | indexop_expr(DOT, seq_expr, { None })
       { mk_indexop_expr builtin_indexing_operators ~loc:$sloc $1 }
+  | array=simple_expr DOT HASH LPAREN index=seq_expr RPAREN
+      { mkexp ~loc:$sloc
+          (Pexp_apply(
+             ghexp ~loc:$sloc
+               (Pexp_ident (ghloc ~loc:$sloc
+                              (Ldot(Lident "Iarray", "get")))),
+             [Nolabel, array; Nolabel, index])) }
   | indexop_expr(qualified_dotop, expr_semi_list, { None })
       { mk_indexop_expr user_indexing_operators ~loc:$sloc $1 }
   | indexop_error (DOT, seq_expr) { $1 }
+  | indexop_error (dot_hash, seq_expr) { $1 }
   | indexop_error (qualified_dotop, expr_semi_list) { $1 }
   | simple_expr_attrs
     { let desc, attrs = $1 in
