@@ -392,6 +392,9 @@ and expression i ppf x =
   | Texp_array (l) ->
       line i ppf "Texp_array\n";
       list i expression ppf l;
+  | Texp_immutable_array (l) ->
+      line i ppf "Texp_immutable_array\n";
+      list i expression ppf l;
   | Texp_list_comprehension comp ->
       line i ppf "Texp_list_comprehension\n";
       comprehension i ppf comp

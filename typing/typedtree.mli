@@ -267,6 +267,7 @@ and expression_desc =
   | Texp_setfield of
       expression * Longident.t loc * Types.label_description * expression
   | Texp_array of expression list
+  | Texp_immutable_array of expression list
   | Texp_list_comprehension of comprehension
   | Texp_array_comprehension of comprehension
   | Texp_ifthenelse of expression * expression * expression option

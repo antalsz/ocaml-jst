@@ -2617,9 +2617,19 @@ comprehension_clause:
   | mod_longident DOT LBRACE record_expr_content error
       { unclosed "{" $loc($3) "}" $loc($5) }
   | array_exprs(LBRACKETBAR, BARRBRACKET)
-      { Generic_array.expression "[|" "|]" (fun elts -> Pexp_array elts) $1 }
+      { Generic_array.expression
+          "[|" "|]"
+          (fun elts -> Pexp_array elts)
+          $1 }
   | array_exprs(LBRACKETCOLON, COLONRBRACKET)
-      { Generic_array.expression "[:" ":]" (fun elts -> Pexp_array (List.rev elts)) $1 }
+      { Generic_array.expression
+          "[:" ":]"
+          (fun elts ->
+            (Extensions.expr_of_extension_expr
+               ~loc:(make_loc $sloc)
+               Immutable_arrays
+               (Eexp_immutable_array (Iaexp_immutable_array elts))).pexp_desc)
+          $1 }
   | LBRACKET expr_semi_list RBRACKET
       { fst (mktailexp $loc($3) $2) }
   | LBRACKET expr_semi_list error

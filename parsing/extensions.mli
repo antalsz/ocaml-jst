@@ -51,11 +51,23 @@ module Comprehensions : sig
         (** [|BODY ...CLAUSES...|] *)
 end
 
+(** The AST for immutable arrays *)
+module Immutable_arrays : sig
+  type expression =
+    | Iaexp_immutable_array of Parsetree.expression list
+        (** [: E1; ...; En :] *)
+
+  type pattern =
+    | Iapat_immutable_array of Parsetree.pattern list
+        (** [| P1; ...; Pn |] **)
+end
+
 (** The AST for all our `ocaml-jst` language extensions; one constructor per
     extension.  Some extensions are handled separately and thus are not listed
     here. *)
 type extension_expr =
-  | Eexp_comprehension of Comprehensions.comprehension_expr
+  | Eexp_comprehension   of Comprehensions.comprehension_expr
+  | Eexp_immutable_array of Immutable_arrays.expression
 
 (** Given an AST node representing some syntax from a language extension, along
     with the language extension that we're working with and a location, lower our

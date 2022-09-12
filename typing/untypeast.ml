@@ -495,6 +495,14 @@ let expression sub exp =
           sub.expr sub exp2)
     | Texp_array list ->
         Pexp_array (List.map (sub.expr sub) list)
+    | Texp_immutable_array list ->
+        let expr =
+          Extensions.expr_of_extension_expr
+            ~loc
+            Immutable_arrays
+            (Eexp_immutable_array (Iaexp_immutable_array (List.map (sub.expr sub) list)))
+        in
+        expr.pexp_desc
     | Texp_list_comprehension comp ->
         comprehension ~loc sub (fun comp -> Cexp_list_comprehension comp) comp
     | Texp_array_comprehension comp ->

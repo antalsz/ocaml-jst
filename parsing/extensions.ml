@@ -437,8 +437,26 @@ module Comprehensions = struct
         Desugaring_error.raise expr (Bad_comprehension_extension_point bad)
 end
 
+module Immutable_arrays = struct
+  type expression =
+    | Iaexp_immutable_array of Parsetree.expression list
+        (** [: E1; ...; En :] *)
+
+  type pattern = 
+    | Iapat_immutable_array of Parsetree.pattern list
+        (** [| P1; ...; Pn |] **)
+
+  let expr_of ~loc = function
+    | Iaexp_immutable_array elts -> Ast_helper.Exp.array ~loc elts
+                     
+  let of_expr expr = match expr.pexp_desc with
+    | Pexp_array elts -> Iaexp_immutable_array elts
+    | _ -> failwith "Malformed immutable array expression"
+end
+
 type extension_expr =
-  | Eexp_comprehension of Comprehensions.comprehension_expr
+  | Eexp_comprehension   of Comprehensions.comprehension_expr
+  | Eexp_immutable_array of Immutable_arrays.expression
 
 type extension =
   | Extension :
@@ -453,7 +471,14 @@ let extension : Clflags.Extension.t -> extension = function
       Extension { expr_of = Comprehensions.expr_of_comprehension_expr
                 ; of_expr = Comprehensions.comprehension_expr_of_expr
                 ; wrap    = (fun cexp -> Eexp_comprehension cexp)
-                ; unwrap  = (fun (Eexp_comprehension cexp) -> Some cexp) }
+                ; unwrap  = (function | Eexp_comprehension cexp -> Some cexp
+                                      | _                       -> None) }
+  | Immutable_arrays ->
+      Extension { expr_of = Immutable_arrays.expr_of
+                ; of_expr = Immutable_arrays.of_expr
+                ; wrap    = (fun iaexp -> Eexp_immutable_array iaexp)
+                ; unwrap  = (function | Eexp_immutable_array iaexp -> Some iaexp
+                                      | _                          -> None) }
   | (Local | Include_functor) as ext ->
       (* CR aspectorzabusky: See the comment at the start of this file. *)
       Misc.fatal_errorf

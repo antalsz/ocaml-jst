@@ -233,7 +233,7 @@ let expr sub {exp_extra; exp_desc; exp_env; _} =
   | Texp_setfield (exp1, _, _, exp2) ->
       sub.expr sub exp1;
       sub.expr sub exp2
-  | Texp_array list -> List.iter (sub.expr sub) list
+  | Texp_array list | Texp_immutable_array list -> List.iter (sub.expr sub) list
   | Texp_list_comprehension { comp_body; comp_clauses }
   | Texp_array_comprehension { comp_body; comp_clauses } ->
       sub.expr sub comp_body;

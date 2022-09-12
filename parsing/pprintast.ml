@@ -1766,7 +1766,8 @@ and directive_argument f x =
 
 and extension_expr ctxt f (x : Extensions.extension_expr) =
   match x with
-  | Eexp_comprehension comp -> comprehension_expr ctxt f comp
+  | Eexp_comprehension comp    -> comprehension_expr ctxt f comp
+  | Eexp_immutable_array iaexp -> immutable_array_expr ctxt f iaexp
 
 and comprehension_expr ctxt f (x : Extensions.Comprehensions.comprehension_expr) =
   match x with
@@ -1806,6 +1807,12 @@ and comprehension_iterator ctxt f (x : Extensions.Comprehensions.iterator) =
         (expression ctxt) stop
   | In seq ->
       pp f "in %a" (expression ctxt) seq
+
+and immutable_array_expr ctxt f (x : Extensions.Immutable_arrays.expression) =
+  match x with
+  | Iaexp_immutable_array elts ->
+      pp f "@[<0>@[<2>[:%a:]@]@]"
+         (list (simple_expr (under_semi ctxt)) ~sep:";") elts
 
 let toplevel_phrase f x =
   match x with
