@@ -1448,6 +1448,7 @@ typing/typecore.cmo : \
     typing/types.cmi \
     typing/typedtree.cmi \
     typing/typedecl.cmi \
+    typing/type_immediacy.cmi \
     typing/subst.cmi \
     typing/shape.cmi \
     typing/rec_check.cmi \
@@ -1482,6 +1483,7 @@ typing/typecore.cmx : \
     typing/types.cmx \
     typing/typedtree.cmx \
     typing/typedecl.cmx \
+    typing/type_immediacy.cmx \
     typing/subst.cmx \
     typing/shape.cmx \
     typing/rec_check.cmx \
@@ -1521,9 +1523,7 @@ typing/typecore.cmi : \
     typing/ident.cmi \
     typing/errortrace.cmi \
     typing/env.cmi \
-    typing/ctype.cmi \
     utils/clflags.cmi \
-    typing/btype.cmi \
     parsing/asttypes.cmi
 typing/typedecl.cmo : \
     utils/warnings.cmi \
@@ -2819,6 +2819,7 @@ asmcomp/emit.cmo : \
     asmcomp/x86_ast.cmi \
     asmcomp/reg.cmi \
     asmcomp/proc.cmi \
+    asmcomp/printmach.cmi \
     utils/numbers.cmi \
     utils/misc.cmi \
     asmcomp/mach.cmi \
@@ -2827,6 +2828,7 @@ asmcomp/emit.cmo : \
     asmcomp/emitenv.cmi \
     asmcomp/emitaux.cmi \
     utils/domainstate.cmi \
+    lambda/debuginfo.cmi \
     utils/config.cmi \
     asmcomp/cmm_helpers.cmi \
     asmcomp/cmm.cmi \
@@ -2842,6 +2844,7 @@ asmcomp/emit.cmx : \
     asmcomp/x86_ast.cmi \
     asmcomp/reg.cmx \
     asmcomp/proc.cmx \
+    asmcomp/printmach.cmx \
     utils/numbers.cmx \
     utils/misc.cmx \
     asmcomp/mach.cmx \
@@ -2850,6 +2853,7 @@ asmcomp/emit.cmx : \
     asmcomp/emitenv.cmi \
     asmcomp/emitaux.cmx \
     utils/domainstate.cmx \
+    lambda/debuginfo.cmx \
     utils/config.cmx \
     asmcomp/cmm_helpers.cmx \
     asmcomp/cmm.cmx \
@@ -3877,22 +3881,6 @@ lambda/translclass.cmi : \
     lambda/lambda.cmi \
     typing/ident.cmi \
     lambda/debuginfo.cmi \
-    parsing/asttypes.cmi
-lambda/translcomprehension.cmo : \
-    typing/typeopt.cmi \
-    typing/typedtree.cmi \
-    typing/primitive.cmi \
-    lambda/matching.cmi \
-    lambda/lambda.cmi \
-    typing/ident.cmi \
-    parsing/asttypes.cmi
-lambda/translcomprehension.cmx : \
-    typing/typeopt.cmx \
-    typing/typedtree.cmx \
-    typing/primitive.cmx \
-    lambda/matching.cmx \
-    lambda/lambda.cmx \
-    typing/ident.cmx \
     parsing/asttypes.cmi
 lambda/translcore.cmo : \
     utils/warnings.cmi \

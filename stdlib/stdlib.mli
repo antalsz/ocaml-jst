@@ -1421,6 +1421,7 @@ module Genlex       = Genlex
 [@@deprecated "Use the camlp-streams library instead."]
 module Hashtbl      = Hashtbl
 module In_channel   = In_channel
+module Iarray       = Iarray
 module Int          = Int
 module Int32        = Int32
 module Int64        = Int64

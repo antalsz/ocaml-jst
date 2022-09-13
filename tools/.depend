@@ -30,6 +30,14 @@ cmpbyt.cmx : \
     ../bytecomp/bytesections.cmx
 cvt_emit.cmo :
 cvt_emit.cmx :
+debug_printers.cmo : \
+    ../typing/printtyp.cmi \
+    ../typing/path.cmi \
+    ../typing/ident.cmi
+debug_printers.cmx : \
+    ../typing/printtyp.cmx \
+    ../typing/path.cmx \
+    ../typing/ident.cmx
 dumpobj.cmo : \
     ../bytecomp/symtable.cmi \
     opnames.cmo \
@@ -158,6 +166,8 @@ ocamlmklib.cmo : \
 ocamlmklib.cmx : \
     ../utils/misc.cmx \
     ../utils/config.cmx
+ocamlmklibconfig.cmo :
+ocamlmklibconfig.cmx :
 ocamlmktop.cmo : \
     ../utils/config.cmi \
     ../utils/ccomp.cmi
