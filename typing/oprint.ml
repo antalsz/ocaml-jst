@@ -215,7 +215,7 @@ let print_out_value ppf tree =
         fprintf ppf "@[<1>[%a]@]" (print_tree_list print_tree_1 ";") tl
     | Oval_array tl ->
         fprintf ppf "@[<2>[|%a|]@]" (print_tree_list print_tree_1 ";") tl
-    | Oval_immutable_array tl ->
+    | Oval_iarray tl ->
         fprintf ppf "@[<2>[:%a:]@]" (print_tree_list print_tree_1 ";") tl
     | Oval_constr (name, []) -> print_ident ppf name
     | Oval_variant (name, None) -> fprintf ppf "`%s" name

@@ -40,7 +40,7 @@ type out_attribute =
 
 type out_value =
   | Oval_array of out_value list
-  | Oval_immutable_array of out_value list
+  | Oval_iarray of out_value list (* CR aspectorzabusky: Or [Oval_immutable_array]? *)
   | Oval_char of char
   | Oval_constr of out_ident * out_value list
   | Oval_ellipsis

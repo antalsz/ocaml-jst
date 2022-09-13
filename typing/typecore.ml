@@ -6916,7 +6916,7 @@ and type_immutable_array ~loc ~env ~expected_mode ~ty_expected ~explanation
         ~expected_mode
         ~ty_expected
         ~explanation
-        ~type_:Predef.type_immutable_array
+        ~type_:Predef.type_iarray
         ~texp:(fun elts -> Texp_immutable_array elts)
         ~attributes:[] (* CR aspectorzabusky: This can't be right *)
         elts

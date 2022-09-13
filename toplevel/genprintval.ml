@@ -293,8 +293,8 @@ module Make(O : OBJ)(EVP : EVALPATH with type valu = O.t) = struct
             when Path.same path Predef.path_array ->
               tree_of_generic_array (fun elts -> Oval_array elts) depth obj ty_arg
           | Tconstr(path, [ty_arg], _)
-            when Path.same path Predef.path_immutable_array ->
-              tree_of_generic_array (fun elts -> Oval_immutable_array elts) depth obj ty_arg
+            when Path.same path Predef.path_iarray ->
+              tree_of_generic_array (fun elts -> Oval_iarray elts) depth obj ty_arg
             
           | Tconstr(path, [], _)
               when Path.same path Predef.path_string ->

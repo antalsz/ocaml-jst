@@ -56,10 +56,12 @@ module Immutable_arrays : sig
   type expression =
     | Iaexp_immutable_array of Parsetree.expression list
         (** [: E1; ...; En :] *)
+        (* CR aspectorzabusky: Or [Iaexp_iarray]? *)
 
   type pattern =
     | Iapat_immutable_array of Parsetree.pattern list
         (** [| P1; ...; Pn |] **)
+        (* CR aspectorzabusky: Or [Iapat_iarray]? *)
 end
 
 (** The AST for all our `ocaml-jst` language extensions; one constructor per
