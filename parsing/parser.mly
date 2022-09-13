@@ -302,6 +302,25 @@ let unclosed opening_name opening_loc closing_name closing_loc =
   raise(Syntaxerr.Error(Syntaxerr.Unclosed(make_loc opening_loc, opening_name,
                                            make_loc closing_loc, closing_name)))
 
+module Generic_array = struct
+  type t =
+    | Literal of expression list
+    | Opened_literal of open_declaration *
+                        Lexing.position *
+                        Lexing.position *
+                        expression list
+    | Unclosed of (Lexing.position * Lexing.position) *
+                  (Lexing.position * Lexing.position)
+
+  let expression open_ close array = function
+    | Literal elts ->
+       array elts
+    | Opened_literal(od, startpos, endpos, elts) ->
+       Pexp_open(od, mkexp ~loc:(startpos, endpos) (array elts))
+    | Unclosed(startpos, endpos) ->
+       unclosed open_ startpos close endpos
+end
+
 let expecting loc nonterm =
     raise Syntaxerr.(Error(Expecting(make_loc loc, nonterm)))
 
@@ -728,6 +747,7 @@ let mk_directive ~loc name arg =
 %token COLONCOLON             "::"
 %token COLONEQUAL             ":="
 %token COLONGREATER           ":>"
+%token COLONRBRACKET          ":]"
 %token COMMA                  ","
 %token CONSTRAINT             "constraint"
 %token DO                     "do"
@@ -771,6 +791,7 @@ let mk_directive ~loc name arg =
 %token LBRACELESS             "{<"
 %token LBRACKET               "["
 %token LBRACKETBAR            "[|"
+%token LBRACKETCOLON          "[:"
 %token LBRACKETLESS           "[<"
 %token LBRACKETGREATER        "[>"
 %token LBRACKETPERCENT        "[%"
@@ -905,7 +926,7 @@ The precedences must be listed from low to high.
 %nonassoc DOT DOTOP
 /* Finally, the first tokens of simple_expr are above everything else. */
 %nonassoc BACKQUOTE BANG BEGIN CHAR FALSE FLOAT INT OBJECT
-          LBRACE LBRACELESS LBRACKET LBRACKETBAR LIDENT LPAREN
+          LBRACE LBRACELESS LBRACKET LBRACKETBAR LBRACKETCOLON LIDENT LPAREN
           NEW PREFIXOP STRING TRUE UIDENT
           LBRACKETPERCENT QUOTED_STRING_EXPR
 
@@ -2530,6 +2551,22 @@ comprehension_clause:
          (Eexp_comprehension $1)).pexp_desc }
 ;
 
+%inline array_exprs(ARR_OPEN, ARR_CLOSE):
+  | ARR_OPEN expr_semi_list ARR_CLOSE
+      { Generic_array.Literal $2 }
+  | ARR_OPEN expr_semi_list error
+      { Generic_array.Unclosed($loc($1),$loc($3)) }
+  | ARR_OPEN ARR_CLOSE
+      { Generic_array.Literal [] }
+  | od=open_dot_declaration DOT ARR_OPEN expr_semi_list ARR_CLOSE
+      { Generic_array.Opened_literal(od, $startpos($3), $endpos, $4) }
+  | od=open_dot_declaration DOT ARR_OPEN ARR_CLOSE
+      { (* TODO: review the location of Pexp_array *)
+        Generic_array.Opened_literal(od, $startpos($3), $endpos, []) }
+  | mod_longident DOT
+    ARR_OPEN expr_semi_list error
+      { Generic_array.Unclosed($loc($3), $loc($5)) }
+
 %inline simple_expr_:
   | mkrhs(val_longident)
       { Pexp_ident ($1) }
@@ -2579,20 +2616,10 @@ comprehension_clause:
                         (Pexp_record(fields, exten))) }
   | mod_longident DOT LBRACE record_expr_content error
       { unclosed "{" $loc($3) "}" $loc($5) }
-  | LBRACKETBAR expr_semi_list BARRBRACKET
-      { Pexp_array($2) }
-  | LBRACKETBAR expr_semi_list error
-      { unclosed "[|" $loc($1) "|]" $loc($3) }
-  | LBRACKETBAR BARRBRACKET
-      { Pexp_array [] }
-  | od=open_dot_declaration DOT LBRACKETBAR expr_semi_list BARRBRACKET
-      { Pexp_open(od, mkexp ~loc:($startpos($3), $endpos) (Pexp_array($4))) }
-  | od=open_dot_declaration DOT LBRACKETBAR BARRBRACKET
-      { (* TODO: review the location of Pexp_array *)
-        Pexp_open(od, mkexp ~loc:($startpos($3), $endpos) (Pexp_array [])) }
-  | mod_longident DOT
-    LBRACKETBAR expr_semi_list error
-      { unclosed "[|" $loc($3) "|]" $loc($5) }
+  | array_exprs(LBRACKETBAR, BARRBRACKET)
+      { Generic_array.expression "[|" "|]" (fun elts -> Pexp_array elts) $1 }
+  | array_exprs(LBRACKETCOLON, COLONRBRACKET)
+      { Generic_array.expression "[:" ":]" (fun elts -> Pexp_array (List.rev elts)) $1 }
   | LBRACKET expr_semi_list RBRACKET
       { fst (mktailexp $loc($3) $2) }
   | LBRACKET expr_semi_list error
