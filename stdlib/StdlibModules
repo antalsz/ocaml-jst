@@ -43,8 +43,9 @@ STDLIB_MODULE_BASENAMES = \
   camlinternalFormat printf arg atomic \
   printexc fun gc digest random hashtbl weak \
   format scanf callback camlinternalOO oo camlinternalMod genlex ephemeron \
-  filename complex arrayLabels listLabels bytesLabels stringLabels moreLabels \
-  stdLabels bigarray camlinternalComprehension in_channel out_channel
+  filename complex arrayLabels iarrayLabels listLabels bytesLabels \
+  stringLabels moreLabels stdLabels bigarray camlinternalComprehension \
+  in_channel out_channel
 
 STDLIB_PREFIXED_MODULES = \
   $(filter-out stdlib camlinternal%, $(STDLIB_MODULE_BASENAMES))

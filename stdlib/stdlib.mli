@@ -1422,6 +1422,7 @@ module Genlex       = Genlex
 module Hashtbl      = Hashtbl
 module In_channel   = In_channel
 module Iarray       = Iarray
+module IarrayLabels = IarrayLabels
 module Int          = Int
 module Int32        = Int32
 module Int64        = Int64
