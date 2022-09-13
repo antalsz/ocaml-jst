@@ -48,13 +48,3 @@ let of_seq = Obj.magic (Array.of_seq : 'a Seq.t -> 'a array)
 
 let to_array = Array.of_iarray
 let of_array = Array.to_iarray
-                 
-let with_array n x f =
-  let x = Array.make n x in
-  let r = f x in
-  Obj.magic (x : _ array), r
-
-let with_array' n x f =
-  let x = Array.make n x in
-  f x;
-  Obj.magic (x : _ array)

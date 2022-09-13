@@ -101,13 +101,19 @@ val of_list : 'a list -> 'a iarray
 
 (** {1 Converting to and from mutable arrays} *)
 
-val with_array : int -> 'a -> f:local_ (local_ 'a array -> 'b) -> 'a iarray * 'b
-
-val with_array' : int -> 'a -> f:local_ (local_ 'a array -> unit) -> 'a iarray
-
-val of_array : 'a array -> 'a iarray
+(* CR aspectorzabusky: When we add locals, we can do
+   {[
+     val with_array : int -> 'a -> f:local_ (local_ 'a array -> 'b) -> 'a iarray * 'b
+     val with_array' : int -> 'a -> f:local_ (local_ 'a array -> unit) -> 'a iarray
+   ]} *)
 
 val to_array : 'a iarray -> 'a array
+(** [to_array a] returns a mutable copy of the immutable array [a]; that is, a
+   fresh (mutable) array containing the same elements as [a] *)
+
+val of_array : 'a array -> 'a iarray
+(** [of_array ma] returns an immutable copy of the mutable array [ma]; that is,
+   a fresh immutable array containing the same elements as [ma] *)
 
 (** {1 Iterators} *)
 
