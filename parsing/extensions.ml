@@ -101,11 +101,13 @@ open Parsetree
 type malformed_extension =
   | Has_payload of payload
   | Wrong_arguments of (Asttypes.arg_label * expression) list
+  | Wrong_tuple of pattern list
 
 type error =
   | Malformed_extension of string list * malformed_extension
   | Unknown_extension of string
   | Disabled_extension of Clflags.Extension.t
+  | Wrong_syntactic_category of Clflags.Extension.t * string
   | Unnamed_extension
   | Bad_introduction of string * string list
 
@@ -124,13 +126,20 @@ let report_error ~loc = function
       | Wrong_arguments arguments ->
           Location.errorf
             ~loc
-            "Extension extension nodes must be applied to exactly one \
-             unlabeled argument, but \"%s\" was applied to %s"
+            "Expression extension extension nodes must be applied to exactly \
+             one unlabeled argument, but \"%s\" was applied to %s"
             name
             (match arguments with
              | [Labelled _, _] -> "a labeled argument"
              | [Optional _, _] -> "an optional argument"
              | _ -> Int.to_string (List.length arguments) ^ " arguments")
+      | Wrong_tuple patterns ->
+          Location.errorf
+            ~loc
+            "Pattern extension extension nodes must be the first component of \
+             a pair, but \"%s\" was the first component of a %d-tuple"
+            name
+            (1 + List.length patterns)
     end
   | Unknown_extension name ->
       Location.errorf
@@ -144,6 +153,12 @@ let report_error ~loc = function
         ~loc
         "The extension \"%s\" is disabled and cannot be used"
         (Clflags.Extension.to_string ext)
+  | Wrong_syntactic_category(ext, cat) ->
+      Location.errorf
+        ~loc
+        "The extension \"%s\" cannot appear in %s"
+        (Clflags.Extension.to_string ext)
+        cat
   | Unnamed_extension ->
       Location.errorf
         ~loc
@@ -163,13 +178,26 @@ let () =
       | Error(loc, err) -> Some (report_error ~loc err)
       | _ -> None)
 
-let extension_tag ~loc names =
-  Ast_helper.Exp.extension
+let extension_tag
+      ~loc
+      (extension_node
+        : ?loc:Location.t -> ?attrs:attributes -> extension -> 'ast)
+      names =
+  extension_node
     ~loc
     ({ txt = String.concat "." ("extension" :: names); loc }, PStr [])
 
 let extension_expr ~loc names expr =
-  Ast_helper.Exp.apply ~loc (extension_tag ~loc names) [Nolabel, expr]
+  Ast_helper.Exp.apply
+    ~loc
+    (extension_tag Ast_helper.Exp.extension ~loc names)
+    [Nolabel, expr]
+
+let extension_pat ~loc names pat =
+  Ast_helper.Pat.tuple
+    ~loc
+    [ extension_tag Ast_helper.Pat.extension ~loc names
+    ; pat ]
 
 (* Some extensions written before this file existed are handled in their own
    way; this function filters them out. *)
@@ -177,6 +205,26 @@ let uniformly_handled_extension names =
   match names with
   | [("local"|"global"|"nonlocal"|"escape"|"include_functor"|"curry")] -> false
   | _ -> true
+
+let expand_extension_from_ast
+      ~bad_body
+      ~get_body
+      ({ txt = ext_name; loc = ext_loc }, ext_payload : extension)
+      body_list =
+  match String.split_on_char '.' ext_name with
+  | "extension" :: names when uniformly_handled_extension names -> begin
+      let raise_malformed err =
+        raise (Error(ext_loc, Malformed_extension(names, err)))
+      in
+      match ext_payload with
+      | PStr [] -> begin
+          match List.map get_body body_list with
+          | [Some body] -> Some (names, body)
+          | _ -> raise_malformed (bad_body body_list)
+        end
+      | _ -> raise_malformed (Has_payload ext_payload)
+    end
+  | _ -> None
 
 (** Matches expressions of the form
 
@@ -197,29 +245,24 @@ let uniformly_handled_extension names =
     The second requirement may be loosened in the future. *)
 let expand_extension_expr expr =
   match expr.pexp_desc with
-  | Pexp_apply
-      ( { pexp_desc =
-            Pexp_extension
-              ( { txt = ext_name; loc = ext_loc }
-              , ext_payload )
-        ; _ }
-      , arguments ) ->
-    begin
-      match String.split_on_char '.' ext_name with
-      | "extension" :: names when uniformly_handled_extension names -> begin
-          let raise_malformed err =
-            raise (Error(ext_loc, Malformed_extension(names, err)))
-          in
-          match ext_payload with
-          | PStr [] -> begin
-              match arguments with
-              | [Nolabel, body] -> Some (names, body)
-              | _ -> raise_malformed (Wrong_arguments arguments)
-            end
-          | _ -> raise_malformed (Has_payload ext_payload)
-        end
-      | _ -> None
-    end
+  | Pexp_apply({pexp_desc = Pexp_extension ext; _}, arguments) ->
+      expand_extension_from_ast
+        ~bad_body:(fun arguments -> Wrong_arguments arguments)
+        ~get_body:(function
+                   | (Asttypes.Nolabel, body) -> Some body
+                   | _ -> None)
+        ext
+        arguments
+  | _ -> None
+
+let expand_extension_pat pat =
+  match pat.ppat_desc with
+  | Ppat_tuple({ppat_desc = Ppat_extension ext; _} :: patterns) ->
+      expand_extension_from_ast
+        ~bad_body:(fun patterns -> Wrong_tuple patterns)
+        ~get_body:Option.some
+        ext
+        patterns
   | _ -> None
 
 module Comprehensions = struct
@@ -438,12 +481,12 @@ module Comprehensions = struct
 end
 
 module Immutable_arrays = struct
-  type expression =
-    | Iaexp_immutable_array of Parsetree.expression list
+  type nonrec expression =
+    | Iaexp_immutable_array of expression list
         (** [: E1; ...; En :] *)
 
-  type pattern = 
-    | Iapat_immutable_array of Parsetree.pattern list
+  type nonrec pattern = 
+    | Iapat_immutable_array of pattern list
         (** [| P1; ...; Pn |] **)
 
   let expr_of ~loc = function
@@ -452,33 +495,108 @@ module Immutable_arrays = struct
   let of_expr expr = match expr.pexp_desc with
     | Pexp_array elts -> Iaexp_immutable_array elts
     | _ -> failwith "Malformed immutable array expression"
+
+  let pat_of ~loc = function
+    | Iapat_immutable_array elts -> Ast_helper.Pat.array ~loc elts
+                     
+  let of_pat expr = match expr.ppat_desc with
+    | Ppat_array elts -> Iapat_immutable_array elts
+    | _ -> failwith "Malformed immutable array expression"
 end
 
 type extension_expr =
   | Eexp_comprehension   of Comprehensions.comprehension_expr
   | Eexp_immutable_array of Immutable_arrays.expression
 
+type extension_pat =
+  | Epat_immutable_array of Immutable_arrays.pattern
+
+type ('ext, 'ast, 'ext_ast) ast_extension =
+  { ast_of : loc:Location.t -> 'ext -> 'ast
+  ; of_ast : 'ast -> 'ext
+  ; wrap   : 'ext -> 'ext_ast
+  ; unwrap : 'ext_ast -> 'ext option }
+
+type ('ast, 'ext_ast) optional_ast_extension =
+  | Supported :
+      (_, 'ast, 'ext_ast) ast_extension ->
+      ('ast, 'ext_ast) optional_ast_extension
+  | Unsupported
+
+(* We can extend this type as needed *)
 type extension =
-  | Extension :
-      { expr_of : loc:Location.t -> 'a -> Parsetree.expression
-      ; of_expr : Parsetree.expression -> 'a
-      ; wrap    : 'a -> extension_expr
-      ; unwrap  : extension_expr -> 'a option }
-    -> extension
+  { expression : (expression, extension_expr) optional_ast_extension
+  ; pattern    : (pattern,    extension_pat)  optional_ast_extension
+  }
+
+module Syntactic_category = struct
+  (* One constructor per field of [extension] *)
+  type ('ast, 'ext_ast) t =
+    | Expression : (expression, extension_expr) t
+    | Pattern    : (pattern,    extension_pat)  t
+
+  let plural_string (type ast ext_ast) : (ast, ext_ast) t -> string = function
+    | Expression -> "expressions"
+    | Pattern    -> "patterns"
+
+  let ast_extension (type ast ext_ast)
+                (cat : (ast, ext_ast) t)
+                (ext : extension)
+      : (ast, ext_ast) optional_ast_extension =
+    match cat with
+    | Expression -> ext.expression
+    | Pattern    -> ext.pattern
+
+  let expand (type ast ext_ast)
+      : (ast, ext_ast) t -> ast -> (string list * ast) option
+    = function
+    | Expression -> expand_extension_expr
+    | Pattern    -> expand_extension_pat
+
+  let make_extension (type ast ext_ast)
+      : (ast, ext_ast) t -> loc:Location.t -> string list -> ast -> ast
+    = function
+    | Expression -> extension_expr
+    | Pattern    -> extension_pat
+
+  let location (type ast ext_ast) (cat : (ast, ext_ast) t) (ast : ast) =
+    match cat with
+    | Expression -> ast.pexp_loc
+    | Pattern    -> ast.ppat_loc
+end
+
+(* We use optional arguments here because there are a lot of syntactic
+   categories and we really don't want to have to say [None] for all of them *)
+(* CR aspectorzabusky: Don't love this function name *)
+let extension_embeddings ?expression ?pattern () =
+  let of_option = function
+    | Some ae -> Supported ae
+    | None    -> Unsupported
+  in
+  { expression = of_option expression
+  ; pattern    = of_option pattern }
 
 let extension : Clflags.Extension.t -> extension = function
   | Comprehensions ->
-      Extension { expr_of = Comprehensions.expr_of_comprehension_expr
-                ; of_expr = Comprehensions.comprehension_expr_of_expr
-                ; wrap    = (fun cexp -> Eexp_comprehension cexp)
-                ; unwrap  = (function | Eexp_comprehension cexp -> Some cexp
-                                      | _                       -> None) }
+      extension_embeddings
+        ~expression:{ ast_of = Comprehensions.expr_of_comprehension_expr
+                    ; of_ast = Comprehensions.comprehension_expr_of_expr
+                    ; wrap   = (fun cexp -> Eexp_comprehension cexp)
+                    ; unwrap = (function | Eexp_comprehension cexp -> Some cexp
+                                         | _                       -> None) }
+        ()
   | Immutable_arrays ->
-      Extension { expr_of = Immutable_arrays.expr_of
-                ; of_expr = Immutable_arrays.of_expr
-                ; wrap    = (fun iaexp -> Eexp_immutable_array iaexp)
-                ; unwrap  = (function | Eexp_immutable_array iaexp -> Some iaexp
-                                      | _                          -> None) }
+      extension_embeddings
+        ~expression:{ ast_of = Immutable_arrays.expr_of
+                    ; of_ast = Immutable_arrays.of_expr
+                    ; wrap   = (fun iaexp -> Eexp_immutable_array iaexp)
+                    ; unwrap = (function | Eexp_immutable_array iaexp -> Some iaexp
+                                         | _                          -> None) }
+        ~pattern:{ ast_of = Immutable_arrays.pat_of
+                 ; of_ast = Immutable_arrays.of_pat
+                 ; wrap   = (fun iapat -> Epat_immutable_array iapat)
+                 ; unwrap = (function | Epat_immutable_array iapat -> Some iapat) }
+        ()
   | (Local | Include_functor) as ext ->
       (* CR aspectorzabusky: See the comment at the start of this file. *)
       Misc.fatal_errorf
@@ -486,17 +604,21 @@ let extension : Clflags.Extension.t -> extension = function
          this uniform one."
         (Clflags.Extension.to_string ext)
 
-let extension_expr_of_expr expr =
-  let raise_error err = raise (Error (expr.pexp_loc, err)) in
-  match expand_extension_expr expr with
+let extension_ast_of_ast (type ast ext_ast) (cat : (ast, ext_ast) Syntactic_category.t) (ast : ast) =
+  let raise_error err = raise (Error (Syntactic_category.location cat ast, err)) in
+  match Syntactic_category.expand cat ast with
   | None -> None
-  | Some ([name], expr) -> begin
+  | Some ([name], ast) -> begin
       match Clflags.Extension.of_string name with
       | Some ext ->
           if Clflags.Extension.is_enabled ext
           then
-            let Extension ext = extension ext in
-            Some (ext.wrap (ext.of_expr expr))
+            match Syntactic_category.ast_extension cat (extension ext) with
+            | Supported { of_ast; wrap; _ } ->
+                Some (wrap (of_ast ast))
+            | Unsupported ->
+                raise_error (Wrong_syntactic_category
+                               (ext, Syntactic_category.plural_string cat))
           else
             raise_error (Disabled_extension ext)
       | _ -> raise_error (Unknown_extension name)
@@ -505,6 +627,9 @@ let extension_expr_of_expr expr =
       raise_error Unnamed_extension
   | Some (name :: subnames, _) ->
       raise_error (Bad_introduction(name, subnames))
+
+let extension_expr_of_expr = extension_ast_of_ast Expression
+let extension_pat_of_pat   = extension_ast_of_ast Pattern
 
 (* CR aspectorzabusky: Is this really the right API?  There's a bit of
    redundancy, but I don't see how to alleviate it without making uses of
@@ -525,16 +650,26 @@ let extension_expr_of_expr expr =
    exceptions or it fails *terribly*.  I think this is okay, because we're
    guaranteed to check that when trying to desugar back in the other direction,
    but it's a little awkward. *)
-let expr_of_extension_expr ~loc extn eexpr =
-  let Extension ext = extension extn in
-  match ext.unwrap eexpr with
-  | Some eexpr' ->
-     extension_expr
-       ~loc
-       [Clflags.Extension.to_string extn]
-       (ext.expr_of ~loc eexpr')
-  | None ->
-      failwith
-        (Printf.sprintf
-           "Wrong extension expression for the extension \"%s\""
-           (Clflags.Extension.to_string extn))
+let ast_of_extension_ast cat ~loc extn east =
+  let raise_error err = raise (Error(loc, err)) in
+  match Syntactic_category.ast_extension cat (extension extn) with
+  | Supported { unwrap; ast_of; _ } -> begin
+      match unwrap east with
+      | Some east' ->
+          Syntactic_category.make_extension
+            cat
+            ~loc
+            [Clflags.Extension.to_string extn]
+            (ast_of ~loc east')
+      | None ->
+          failwith
+            (Printf.sprintf
+               "Wrong extension XXXXX for the extension \"%s\""
+               (Clflags.Extension.to_string extn))
+    end
+  | Unsupported ->
+     raise_error (Wrong_syntactic_category
+                     (extn, Syntactic_category.plural_string cat))
+
+let expr_of_extension_expr = ast_of_extension_ast Expression
+let pat_of_extension_pat   = ast_of_extension_ast Pattern
