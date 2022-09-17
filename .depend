@@ -395,6 +395,7 @@ parsing/extensions.cmo : \
     parsing/parsetree.cmi \
     utils/misc.cmi \
     parsing/location.cmi \
+    parsing/extensions_parsing.cmi \
     utils/clflags.cmi \
     parsing/asttypes.cmi \
     parsing/ast_helper.cmi \
@@ -403,6 +404,7 @@ parsing/extensions.cmx : \
     parsing/parsetree.cmi \
     utils/misc.cmx \
     parsing/location.cmx \
+    parsing/extensions_parsing.cmx \
     utils/clflags.cmx \
     parsing/asttypes.cmi \
     parsing/ast_helper.cmx \
@@ -412,6 +414,26 @@ parsing/extensions.cmi : \
     parsing/location.cmi \
     utils/clflags.cmi \
     parsing/asttypes.cmi
+parsing/extensions_parsing.cmo : \
+    parsing/parsetree.cmi \
+    utils/misc.cmi \
+    parsing/location.cmi \
+    utils/clflags.cmi \
+    parsing/asttypes.cmi \
+    parsing/ast_helper.cmi \
+    parsing/extensions_parsing.cmi
+parsing/extensions_parsing.cmx : \
+    parsing/parsetree.cmi \
+    utils/misc.cmx \
+    parsing/location.cmx \
+    utils/clflags.cmx \
+    parsing/asttypes.cmi \
+    parsing/ast_helper.cmx \
+    parsing/extensions_parsing.cmi
+parsing/extensions_parsing.cmi : \
+    parsing/parsetree.cmi \
+    parsing/location.cmi \
+    utils/clflags.cmi
 parsing/lexer.cmo : \
     utils/warnings.cmi \
     parsing/parser.cmi \

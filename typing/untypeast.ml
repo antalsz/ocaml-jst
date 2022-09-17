@@ -423,7 +423,7 @@ let comprehension ~loc sub comp_type comp =
     ; clauses = List.map clause comp_clauses }
   in
   let comprehension_expr =
-    Extensions.expr_of_extension_expr
+    Extensions.Expression.ast_of
       ~loc
       Comprehensions
       (Eexp_comprehension (comp_type (comprehension comp)))
@@ -497,7 +497,7 @@ let expression sub exp =
         Pexp_array (List.map (sub.expr sub) list)
     | Texp_immutable_array list ->
         let expr =
-          Extensions.expr_of_extension_expr
+          Extensions.Expression.ast_of
             ~loc
             Immutable_arrays
             (Eexp_immutable_array (Iaexp_immutable_array (List.map (sub.expr sub) list)))

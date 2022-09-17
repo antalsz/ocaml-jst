@@ -2555,7 +2555,7 @@ comprehension_clause:
 
 %inline comprehension_expr:
   comprehension_ext_expr
-    { (Extensions.expr_of_extension_expr
+    { (Extensions.Expression.ast_of
          ~loc:(make_loc $sloc)
          Comprehensions
          (Eexp_comprehension $1)).pexp_desc }
@@ -2635,7 +2635,7 @@ comprehension_clause:
       { Generic_array.expression
           "[:" ":]"
           (fun elts ->
-            (Extensions.expr_of_extension_expr
+            (Extensions.Expression.ast_of
                ~loc:(make_loc $sloc)
                Immutable_arrays
                (Eexp_immutable_array (Iaexp_immutable_array elts))).pexp_desc)

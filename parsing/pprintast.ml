@@ -668,7 +668,7 @@ and expression ctxt f x =
   if x.pexp_attributes <> [] then
     pp f "((%a)@,%a)" (expression ctxt) {x with pexp_attributes=[]}
       (attributes ctxt) x.pexp_attributes
-  else match Extensions.extension_expr_of_expr x with
+  else match Extensions.Expression.of_ast x with
     | Some eexpr -> extension_expr ctxt f eexpr
     | None -> match x.pexp_desc with
     | Pexp_function _ | Pexp_fun _ | Pexp_match _ | Pexp_try _ | Pexp_sequence _
@@ -1764,7 +1764,7 @@ and directive_argument f x =
   | Pdir_ident (li) -> pp f "@ %a" longident li
   | Pdir_bool (b) -> pp f "@ %s" (string_of_bool b)
 
-and extension_expr ctxt f (x : Extensions.extension_expr) =
+and extension_expr ctxt f (x : Extensions.Expression.t) =
   match x with
   | Eexp_comprehension comp    -> comprehension_expr ctxt f comp
   | Eexp_immutable_array iaexp -> immutable_array_expr ctxt f iaexp

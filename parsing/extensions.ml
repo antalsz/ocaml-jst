@@ -1,303 +1,34 @@
-(* CR aspectorzabusky: I wrote this file before other extensions existed, and
-   they grew separately from the approach here.  This is particularly true
-   because my extension is the only one that adds a big lump of new syntax.
-   This means it's not trivial to unify the approach taken in this file and the
-   approach generally taken by extensions.  I discuss this at length in the PR
-   (in the section "One other issue with representing language extensions in the
-   AST").  Thoughts? *)
-
-(** This module handles the logic around the syntax of our extensions to OCaml
-    for [ocaml-jst], keeping the gory details wrapped up behind a clean
-    interface.
-
-    As we've started to work on syntactic extensions to OCaml, three concerns
-    arose about the mechanics of how we wanted to maintain these changes in our
-    fork.
-
-    1. We don't want to extend the AST for our fork, as we really want to make sure
-       things like ppxen are cross-compatible between upstream and [ocaml-jst].
-       Thankfully, OCaml already provides places to add extra syntax: extension
-       points and annotations!  Thus, we have to come up with a way of representing
-       our new syntactic constructs in terms of extension points (or annotations,
-       but we went with the former).
-
-    2. We don't want to actually match on extension points whose names are specific
-       strings all over the compiler; that's incredibly messy, and it's easy to miss
-       cases, etc.
-
-    3. We want to keep different language extensions distinct so that we can add
-       them to upstream independently, work on them separately, and so on.
-
-    We have come up with a design that addresses those concerns by providing both a
-    nice compiler-level interface for working with our syntactic extensions as
-    first-class AST nodes, as well as a uniform scheme for translating this to and
-    from [Parsetree.expression] values containing extension points.
-
-    a. For each language extension, we define a module (e.g., [Comprehensions]), in
-       which define a proper AST type (e.g., [Comprehensions.comprehension_expr] and
-       its subcomponents).  This addresses concern (3); we've now contained each
-       extension in a module.  But just that would leave them too siloed, so…
-
-    b. We define an *overall auxiliary AST* that's just for our language extensions,
-       [extension_expr]; it contains one constructor for each of the AST types
-       defined as described in design point (1).  This addresses concern (2); we can
-       now match on actual OCaml constructors, as long as we can get ahold of them.
-       And to do that…
-
-    c. We define a general scheme for how we represent language extensions in terms
-       of the existing AST, and provide a few primitives for consuming/creating AST
-       nodes of this form.  There's not a lot of abstraction to be done, or at least
-       it's not (yet) apparent what abstraction there is to do, so most of this
-       remains manual.  (Setting up a full lens-based/otherwise bidirectional
-       approach sounds like a great opportunity for yak-shaving, but not *actually*
-       a good idea.)  This solves concern (3), and by doing it uniformly helps us
-       address multiple cases at one stroke.
-
-    We then bundle this all up for each individual extension into the type
-    [extension] (defined towards the end of this file) containing two different
-    (partial) isomorphisms: the fully isomorphic (up to exceptions) ability to
-    lift and lower between the custom AST type (from design point (a)) and
-    existing AST expressions, leveraging the common format for representing
-    thins in the existing AST from design point (c); and the partial ability to
-    lift and lower between the custom AST type and our overall auxiliary AST
-    type (from design point (b)), which is just a constructor application in one
-    direction and a pattern match against a constructor in the other.  This type
-    is an existential type that hides the extension-specific type, allowing us
-    to collect all of our extensions together.
-
-    As mentioned, there are some gory details: in particular, the specific
-    translation scheme we adopt for moving to and from
-    [Parsetree.expression]. of gory details, we adopt the following scheme for
-    representing our language extensions in the existing AST: all of our
-    language extensions are to be rendered as applications of extension nodes to
-    another expression.  In particular, for a given extension named [EXTNAME]
-    (i.e., one that is enabled by [-extension EXTNAME] on the command line), any
-    syntax it introduces ought to be desugared as [([%extension.EXTNAME] EXPR)]
-    for some [EXPR].  We also provide utilities for further desugaring similar
-    applications where the extension nodes have the longer form
-    [[%extension.EXTNAME.ID1.ID2.….IDn]] (with the outermost one being the [n =
-    0] case); these might be used inside the [EXPR].  (For example, within the
-    outermost [[%extension.comprehensions]] application, we also have
-    [[%extension.comprehensions.list]], [[%extension.comprehensions.array]],
-    [[%extensions.comprehensions.for.in]], etc.)  We don't use the extension
-    node payload so that ppxen can see inside these extension nodes; if we put
-    the subexpressions inside the extension node payload, then we couldn't write
-    something like [[[%string "Hello, %{x}!"] for x in names]], as [ppx_string]
-    wouldn't traverse inside the payload to find the [[%string]] extension
-    point.  Language extensions are of course allowed to impose constraints on
-    what the contained expression is; we're also happy for this to error in
-    various ways on malformed input, since the nobody should ever be writing
-    these forms directly.  They're just an implementation detail.
-
-    Within this module, we provide some simple machinery for working with these
-    [([%extension.EXTNAME.ID1.ID2.….IDn] EXPR)] wrapped forms.  To construct
-    one, we provide [extension_expr]; to destructure one, we provide
-    [expand_extension_expr].  We still have to write the transformations in both
-    directions for all new syntax, lowering it to extension nodes and then
-    (somewhat more obnoxiously) lifting it back out. *)
-
 open Parsetree
+open Extensions_parsing
 
-type malformed_extension =
-  | Has_payload of payload
-  | Wrong_arguments of (Asttypes.arg_label * expression) list
-  | Wrong_tuple of pattern list
+(******************************************************************************)
+(** Individual language extension modules *)
 
-type error =
-  | Malformed_extension of string list * malformed_extension
-  | Unknown_extension of string
-  | Disabled_extension of Clflags.Extension.t
-  | Wrong_syntactic_category of Clflags.Extension.t * string
-  | Unnamed_extension
-  | Bad_introduction of string * string list
-
-exception Error of Location.t * error
-
-let report_error ~loc = function
-  | Malformed_extension(name, malformed) -> begin
-      let name = String.concat "." ("extension" :: name) in
-      match malformed with
-      | Has_payload _payload ->
-          Location.errorf
-            ~loc
-            "Extension extension nodes are not allowed to have a payload, \
-             but \"%s\" does"
-          name
-      | Wrong_arguments arguments ->
-          Location.errorf
-            ~loc
-            "Expression extension extension nodes must be applied to exactly \
-             one unlabeled argument, but \"%s\" was applied to %s"
-            name
-            (match arguments with
-             | [Labelled _, _] -> "a labeled argument"
-             | [Optional _, _] -> "an optional argument"
-             | _ -> Int.to_string (List.length arguments) ^ " arguments")
-      | Wrong_tuple patterns ->
-          Location.errorf
-            ~loc
-            "Pattern extension extension nodes must be the first component of \
-             a pair, but \"%s\" was the first component of a %d-tuple"
-            name
-            (1 + List.length patterns)
-    end
-  | Unknown_extension name ->
-      Location.errorf
-        ~loc
-        "Unknown extension \"%s\" referenced via an [%%extension.%s] \
-         extension node"
-        name
-        name
-  | Disabled_extension ext ->
-      Location.errorf
-        ~loc
-        "The extension \"%s\" is disabled and cannot be used"
-        (Clflags.Extension.to_string ext)
-  | Wrong_syntactic_category(ext, cat) ->
-      Location.errorf
-        ~loc
-        "The extension \"%s\" cannot appear in %s"
-        (Clflags.Extension.to_string ext)
-        cat
-  | Unnamed_extension ->
-      Location.errorf
-        ~loc
-        "Cannot have an extension node named [%%extension]"
-  | Bad_introduction(name, subnames) ->
-      Location.errorf
-        ~loc
-        "The extension \"%s\" was referenced improperly; it started with an \
-         [%%extension.%s] extension node, not an [%%extension.%s] one"
-        name
-        (String.concat "." (name :: subnames))
-        name
-
-let () =
-  Location.register_error_of_exn
-    (function
-      | Error(loc, err) -> Some (report_error ~loc err)
-      | _ -> None)
-
-let extension_tag
-      ~loc
-      (extension_node
-        : ?loc:Location.t -> ?attrs:attributes -> extension -> 'ast)
-      names =
-  extension_node
-    ~loc
-    ({ txt = String.concat "." ("extension" :: names); loc }, PStr [])
-
-let extension_expr ~loc names expr =
-  Ast_helper.Exp.apply
-    ~loc
-    (extension_tag Ast_helper.Exp.extension ~loc names)
-    [Nolabel, expr]
-
-let extension_pat ~loc names pat =
-  Ast_helper.Pat.tuple
-    ~loc
-    [ extension_tag Ast_helper.Pat.extension ~loc names
-    ; pat ]
-
-(* Some extensions written before this file existed are handled in their own
-   way; this function filters them out. *)
-let uniformly_handled_extension names =
-  match names with
-  | [("local"|"global"|"nonlocal"|"escape"|"include_functor"|"curry")] -> false
-  | _ -> true
-
-let expand_extension_from_ast
-      ~bad_body
-      ~get_body
-      ({ txt = ext_name; loc = ext_loc }, ext_payload : extension)
-      body_list =
-  match String.split_on_char '.' ext_name with
-  | "extension" :: names when uniformly_handled_extension names -> begin
-      let raise_malformed err =
-        raise (Error(ext_loc, Malformed_extension(names, err)))
-      in
-      match ext_payload with
-      | PStr [] -> begin
-          match List.map get_body body_list with
-          | [Some body] -> Some (names, body)
-          | _ -> raise_malformed (bad_body body_list)
-        end
-      | _ -> raise_malformed (Has_payload ext_payload)
-    end
-  | _ -> None
-
-(** Matches expressions of the form
-
-        ([%extension.NAME] BODY)
-
-    and returns [Some (NAME, BODY)] if successful, where NAME is a list of
-    dot-separated name components.  If the expression is not an application
-    headed by an extension node whose name begins with ["extension."], returns
-    [None].  If the expression is a malformed extension application, raises an
-    [Error].  Malformed means either:
-
-    1. The [[%extension.NAME]] extension point has a payload; extensions must be
-       empty, so other ppxes can traverse "into" them.
-
-    2. The [[%extension.NAME]] extension point is applied to something other
-       than a single unlabeled argument.
-
-    The second requirement may be loosened in the future. *)
-let expand_extension_expr expr =
-  match expr.pexp_desc with
-  | Pexp_apply({pexp_desc = Pexp_extension ext; _}, arguments) ->
-      expand_extension_from_ast
-        ~bad_body:(fun arguments -> Wrong_arguments arguments)
-        ~get_body:(function
-                   | (Asttypes.Nolabel, body) -> Some body
-                   | _ -> None)
-        ext
-        arguments
-  | _ -> None
-
-let expand_extension_pat pat =
-  match pat.ppat_desc with
-  | Ppat_tuple({ppat_desc = Ppat_extension ext; _} :: patterns) ->
-      expand_extension_from_ast
-        ~bad_body:(fun patterns -> Wrong_tuple patterns)
-        ~get_body:Option.some
-        ext
-        patterns
-  | _ -> None
-
+(** List and array comprehensions *)
 module Comprehensions = struct
   type iterator =
     | Range of { start     : expression
                ; stop      : expression
                ; direction : Asttypes.direction_flag }
-        (** "= START to STOP" (direction = Upto)
-            "= START downto STOP" (direction = Downto) *)
     | In of expression
-       (** "in EXPR" *)
 
   type clause_binding =
     { pattern    : pattern
     ; iterator   : iterator
     ; attributes : attribute list }
-      (** PAT (in/= ...) [@...] *)
 
   type clause =
     | For of clause_binding list
-        (** "for PAT (in/= ...) and PAT (in/= ...) and ..."; must be nonempty *)
     | When of expression
-        (** "when EXPR" *)
 
   type comprehension =
     { body    : expression
-        (** The body/generator of the comprehension *)
     ; clauses : clause list
-        (** The clauses of the comprehension; must be nonempty *) }
+    }
 
   type comprehension_expr =
     | Cexp_list_comprehension  of comprehension
-        (** [BODY ...CLAUSES...] *)
     | Cexp_array_comprehension of comprehension
-        (** [|BODY ...CLAUSES...|] *)
 
   (* CR aspectorzabusky: Move the general description of how these BNF grammars
      work to the general modular extensions machinery, and then refer back to
@@ -324,10 +55,15 @@ module Comprehensions = struct
      v}
   *)
 
+  (** Because we construct a lot of subexpressions, we save the name here *)
   let extension_name = Clflags.Extension.to_string Comprehensions
 
   let comprehension_expr ~loc names =
-    extension_expr ~loc (extension_name :: names)
+    Expression.make_extension ~loc (extension_name :: names)
+
+  (** First, we define how to go from the nice AST to the OCaml AST; this is
+      the [expr_of_...] family of expressions, culminating in
+      [expr_of_comprehension_expr]. *)
 
   let expr_of_iterator ~loc = function
     | Range { start; stop; direction } ->
@@ -382,6 +118,10 @@ module Comprehensions = struct
     | Cexp_list_comprehension  comp -> expr_of_comprehension_type "list"  comp
     | Cexp_array_comprehension comp -> expr_of_comprehension_type "array" comp
 
+  (** Then, we define how to go from the OCaml AST to the nice AST; this is
+      the [..._of_expr] family of expressions, culminating in
+      [comprehension_expr_of_expr]. *)
+
   module Desugaring_error = struct
     type error =
       | Non_comprehension_extension_point of string list
@@ -420,7 +160,7 @@ module Comprehensions = struct
   end
 
   let expand_comprehension_extension_expr expr =
-    match expand_extension_expr expr with
+    match Expression.match_extension expr with
     | Some (comprehensions :: name, expr)
       when String.equal comprehensions extension_name ->
         name, expr
@@ -480,93 +220,56 @@ module Comprehensions = struct
         Desugaring_error.raise expr (Bad_comprehension_extension_point bad)
 end
 
+(** Immutable arrays *)
 module Immutable_arrays = struct
   type nonrec expression =
     | Iaexp_immutable_array of expression list
-        (** [: E1; ...; En :] *)
 
-  type nonrec pattern = 
+  type nonrec pattern =
     | Iapat_immutable_array of pattern list
-        (** [| P1; ...; Pn |] **)
 
   let expr_of ~loc = function
     | Iaexp_immutable_array elts -> Ast_helper.Exp.array ~loc elts
-                     
+
   let of_expr expr = match expr.pexp_desc with
     | Pexp_array elts -> Iaexp_immutable_array elts
     | _ -> failwith "Malformed immutable array expression"
 
   let pat_of ~loc = function
     | Iapat_immutable_array elts -> Ast_helper.Pat.array ~loc elts
-                     
+
   let of_pat expr = match expr.ppat_desc with
     | Ppat_array elts -> Iapat_immutable_array elts
     | _ -> failwith "Malformed immutable array expression"
 end
 
-type extension_expr =
-  | Eexp_comprehension   of Comprehensions.comprehension_expr
-  | Eexp_immutable_array of Immutable_arrays.expression
+(** We put our grouped ASTs in modules so that we can export them later;
+    however, we need to extend these modules later, so we have to give these
+    modules backup names, and we drop the [Ext] for export. *)
 
-type extension_pat =
-  | Epat_immutable_array of Immutable_arrays.pattern
-
-type ('ext, 'ast, 'ext_ast) ast_extension =
-  { ast_of : loc:Location.t -> 'ext -> 'ast
-  ; of_ast : 'ast -> 'ext
-  ; wrap   : 'ext -> 'ext_ast
-  ; unwrap : 'ext_ast -> 'ext option }
-
-type ('ast, 'ext_ast) optional_ast_extension =
-  | Supported :
-      (_, 'ast, 'ext_ast) ast_extension ->
-      ('ast, 'ext_ast) optional_ast_extension
-  | Unsupported
-
-(* We can extend this type as needed *)
-type extension =
-  { expression : (expression, extension_expr) optional_ast_extension
-  ; pattern    : (pattern,    extension_pat)  optional_ast_extension
-  }
-
-module Syntactic_category = struct
-  (* One constructor per field of [extension] *)
-  type ('ast, 'ext_ast) t =
-    | Expression : (expression, extension_expr) t
-    | Pattern    : (pattern,    extension_pat)  t
-
-  let plural_string (type ast ext_ast) : (ast, ext_ast) t -> string = function
-    | Expression -> "expressions"
-    | Pattern    -> "patterns"
-
-  let ast_extension (type ast ext_ast)
-                (cat : (ast, ext_ast) t)
-                (ext : extension)
-      : (ast, ext_ast) optional_ast_extension =
-    match cat with
-    | Expression -> ext.expression
-    | Pattern    -> ext.pattern
-
-  let expand (type ast ext_ast)
-      : (ast, ext_ast) t -> ast -> (string list * ast) option
-    = function
-    | Expression -> expand_extension_expr
-    | Pattern    -> expand_extension_pat
-
-  let make_extension (type ast ext_ast)
-      : (ast, ext_ast) t -> loc:Location.t -> string list -> ast -> ast
-    = function
-    | Expression -> extension_expr
-    | Pattern    -> extension_pat
-
-  let location (type ast ext_ast) (cat : (ast, ext_ast) t) (ast : ast) =
-    match cat with
-    | Expression -> ast.pexp_loc
-    | Pattern    -> ast.ppat_loc
+module Ext_expression = struct
+  type t =
+    | Eexp_comprehension   of Comprehensions.comprehension_expr
+    | Eexp_immutable_array of Immutable_arrays.expression
 end
 
-(* We use optional arguments here because there are a lot of syntactic
-   categories and we really don't want to have to say [None] for all of them *)
+module Ext_pattern = struct
+  type t =
+    | Epat_immutable_array of Immutable_arrays.pattern
+end
+
+(** How a single extension lifts and lowers its terms from and to the
+    corresponding OCaml AST type, for every syntactic category at once; at least
+    one of the fields should be [Supported].  We're adding fields (syntactic
+    categories) to this type as needed. *)
+type extension =
+  { expression : (expression, Ext_expression.t) optional_ast_extension
+  ; pattern    : (pattern,    Ext_pattern.t)    optional_ast_extension
+  }
+
+(** Construct an [extension].  We use optional arguments here because there are
+   (or have the potential to be) a lot of syntactic categories and we really
+   don't want to have to say [Unsupported] for all of them. *)
 (* CR aspectorzabusky: Don't love this function name *)
 let extension_embeddings ?expression ?pattern () =
   let of_option = function
@@ -576,6 +279,9 @@ let extension_embeddings ?expression ?pattern () =
   { expression = of_option expression
   ; pattern    = of_option pattern }
 
+(** Map a language extension name to its parsing [extension].  There are some
+    extensions that we handle separately; these will raise an error if supplied
+    here. *)
 let extension : Clflags.Extension.t -> extension = function
   | Comprehensions ->
       extension_embeddings
@@ -604,72 +310,61 @@ let extension : Clflags.Extension.t -> extension = function
          this uniform one."
         (Clflags.Extension.to_string ext)
 
-let extension_ast_of_ast (type ast ext_ast) (cat : (ast, ext_ast) Syntactic_category.t) (ast : ast) =
-  let raise_error err = raise (Error (Syntactic_category.location cat ast, err)) in
-  match Syntactic_category.expand cat ast with
-  | None -> None
-  | Some ([name], ast) -> begin
-      match Clflags.Extension.of_string name with
-      | Some ext ->
-          if Clflags.Extension.is_enabled ext
-          then
-            match Syntactic_category.ast_extension cat (extension ext) with
-            | Supported { of_ast; wrap; _ } ->
-                Some (wrap (of_ast ast))
-            | Unsupported ->
-                raise_error (Wrong_syntactic_category
-                               (ext, Syntactic_category.plural_string cat))
-          else
-            raise_error (Disabled_extension ext)
-      | _ -> raise_error (Unknown_extension name)
-    end
-  | Some ([], _) ->
-      raise_error Unnamed_extension
-  | Some (name :: subnames, _) ->
-      raise_error (Bad_introduction(name, subnames))
+(******************************************************************************)
+(** Moving to and from OCaml ASTs *)
 
-let extension_expr_of_expr = extension_ast_of_ast Expression
-let extension_pat_of_pat   = extension_ast_of_ast Pattern
+(** A type-indexed enumeration for selecting a specific syntactic category; see
+    the argument to the [Translate] functor for details. *)
+module Syntactic_category = struct
+  (* One constructor per field of [extension] *)
+  type ('ast, 'ext_ast) t =
+    | Expression : (expression, Ext_expression.t) t
+    | Pattern    : (pattern,    Ext_pattern.t)    t
 
-(* CR aspectorzabusky: Is this really the right API?  There's a bit of
-   redundancy, but I don't see how to alleviate it without making uses of
-   `extension_expr` bulkier, and that's right out.  It's also a little weird
-   that this doesn't check if the extension is enabled; it used to -- the whole
-   function was wrapped in
-   {[
-     if Clflags.Extension.is_enabled extn
-     then
-       ...
-     else
-       failwith
-         (Printf.sprintf
-            "The extension \"%s\" is not enabled\""
-            (Clflags.Extension.to_string extn))
-   ]}
-   -- but we call this function from the parser, and the parser can't throw
-   exceptions or it fails *terribly*.  I think this is okay, because we're
-   guaranteed to check that when trying to desugar back in the other direction,
-   but it's a little awkward. *)
-let ast_of_extension_ast cat ~loc extn east =
-  let raise_error err = raise (Error(loc, err)) in
-  match Syntactic_category.ast_extension cat (extension extn) with
-  | Supported { unwrap; ast_of; _ } -> begin
-      match unwrap east with
-      | Some east' ->
-          Syntactic_category.make_extension
-            cat
-            ~loc
-            [Clflags.Extension.to_string extn]
-            (ast_of ~loc east')
-      | None ->
-          failwith
-            (Printf.sprintf
-               "Wrong extension XXXXX for the extension \"%s\""
-               (Clflags.Extension.to_string extn))
-    end
-  | Unsupported ->
-     raise_error (Wrong_syntactic_category
-                     (extn, Syntactic_category.plural_string cat))
+  let ast_module (type ast ext_ast) (cat : (ast, ext_ast) t)
+      : (module AST with type ast = ast) =
+    match cat with
+    | Expression -> (module Expression)
+    | Pattern    -> (module Pattern)
 
-let expr_of_extension_expr = ast_of_extension_ast Expression
-let pat_of_extension_pat   = ast_of_extension_ast Pattern
+  let ast_extension (type ast ext_ast) (cat : (ast, ext_ast) t) ext
+      : (ast, ext_ast) optional_ast_extension =
+    let ext = extension ext in
+    match cat with
+    | Expression -> ext.expression
+    | Pattern    -> ext.pattern
+end
+
+(** See the [Translate] functor *)
+include Translate(Syntactic_category)
+
+(** Both translations at once *)
+let extension_translations cat = extension_ast_of_ast cat, ast_of_extension_ast cat
+
+(******************************************************************************)
+(** The interface to language extensions, which we export; at this point we're
+    willing to shadow the module (types) imported from [Extensions_parsing]. *)
+
+module type AST = sig
+  type t
+  type ast
+
+  val of_ast : ast -> t option
+  val ast_of : loc:Location.t -> Clflags.Extension.t -> t -> ast
+end
+
+module Expression = struct
+  include Ext_expression
+
+  type ast = Parsetree.expression
+
+  let of_ast, ast_of = extension_translations Expression
+end
+
+module Pattern = struct
+  include Ext_pattern
+
+  type ast = Parsetree.pattern
+
+  let of_ast, ast_of = extension_translations Pattern
+end

@@ -268,6 +268,8 @@ and expression_desc =
       expression * Longident.t loc * Types.label_description * expression
   | Texp_array of expression list
   | Texp_immutable_array of expression list (* CR aspectorzabusky: Or [Texp_iarray]? *)
+    (* CR aspectorzabusky: Or [Texp_array of mutability * expression list],
+       where [type mutability = Immutable | Mutable]? *)
   | Texp_list_comprehension of comprehension
   | Texp_array_comprehension of comprehension
   | Texp_ifthenelse of expression * expression * expression option
