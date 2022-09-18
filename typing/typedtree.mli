@@ -117,8 +117,13 @@ and 'k pattern_desc =
 
             Invariant: n > 0
          *)
-  | Tpat_array : value general_pattern list -> value pattern_desc
-        (** [| P1; ...; Pn |] *)
+  | Tpat_array :
+      mutable_flag * value general_pattern list -> value pattern_desc
+        (** [| P1; ...; Pn |]    (flag = Mutable)
+            [: P1; ...; Pn :]    (flag = Immutable) *)
+    (* CR aspectorzabusky: This ended up feeling clearer to me than two
+       constructors, since we want to share a lot of code, but I welcome other
+       opinions *)
   | Tpat_lazy : value general_pattern -> value pattern_desc
         (** lazy P *)
   (* computation patterns *)

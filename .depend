@@ -361,6 +361,7 @@ parsing/depend.cmo : \
     utils/misc.cmi \
     parsing/longident.cmi \
     parsing/location.cmi \
+    parsing/extensions.cmi \
     utils/clflags.cmi \
     parsing/builtin_attributes.cmi \
     parsing/asttypes.cmi \
@@ -370,6 +371,7 @@ parsing/depend.cmx : \
     utils/misc.cmx \
     parsing/longident.cmx \
     parsing/location.cmx \
+    parsing/extensions.cmx \
     utils/clflags.cmx \
     parsing/builtin_attributes.cmx \
     parsing/asttypes.cmi \
@@ -1015,6 +1017,7 @@ typing/parmatch.cmo : \
     parsing/longident.cmi \
     parsing/location.cmi \
     typing/ident.cmi \
+    parsing/extensions.cmi \
     typing/env.cmi \
     typing/ctype.cmi \
     utils/config.cmi \
@@ -1038,6 +1041,7 @@ typing/parmatch.cmx : \
     parsing/longident.cmx \
     parsing/location.cmx \
     typing/ident.cmx \
+    parsing/extensions.cmx \
     typing/env.cmx \
     typing/ctype.cmx \
     utils/config.cmx \

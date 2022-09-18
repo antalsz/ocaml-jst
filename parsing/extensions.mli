@@ -54,7 +54,9 @@ module Comprehensions : sig
     (** [|BODY ...CLAUSES...|] *)
 end
 
-(** The ASTs for immutable arrays *)
+(** The ASTs for immutable arrays.  When we merge this upstream, we'll merge
+    these into the existing [P{exp,pat}_array] constructors by adding a
+    [mutable_flag] argument (just as we did with [T{exp,pat}_array]). *)
 module Immutable_arrays : sig
   type expression =
     | Iaexp_immutable_array of Parsetree.expression list
@@ -63,7 +65,7 @@ module Immutable_arrays : sig
 
   type pattern =
     | Iapat_immutable_array of Parsetree.pattern list
-    (** [| P1; ...; Pn |] **)
+    (** [: P1; ...; Pn :] **)
     (* CR aspectorzabusky: Or [Iapat_iarray]? *)
 end
 

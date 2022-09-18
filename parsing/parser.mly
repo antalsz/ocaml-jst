@@ -321,6 +321,12 @@ module Generic_array = struct
        unclosed open_ startpos close endpos
 end
 
+let ppat_iarray loc elts =
+  (Extensions.Pattern.ast_of
+     ~loc:(make_loc loc)
+     Immutable_arrays
+     (Epat_immutable_array (Iapat_immutable_array elts))).ppat_desc
+
 let expecting loc nonterm =
     raise Syntaxerr.(Error(Expecting(make_loc loc, nonterm)))
 
@@ -3057,6 +3063,10 @@ simple_delimited_pattern:
       { Ppat_array $2 }
     | LBRACKETBAR BARRBRACKET
       { Ppat_array [] }
+    | LBRACKETCOLON pattern_semi_list COLONRBRACKET
+      { ppat_iarray $sloc $2 }
+    | LBRACKETCOLON COLONRBRACKET
+      { ppat_iarray $sloc [] }
     | LBRACKETBAR pattern_semi_list error
       { unclosed "[|" $loc($1) "|]" $loc($3) }
   ) { $1 }

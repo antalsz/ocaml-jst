@@ -498,7 +498,9 @@ and pattern1 ctxt (f:Format.formatter) (x:pattern) : unit =
 
 and simple_pattern ctxt (f:Format.formatter) (x:pattern) : unit =
   if x.ppat_attributes <> [] then pattern ctxt f x
-  else match x.ppat_desc with
+  else match Extensions.Pattern.of_ast x with
+    | Some epat -> simple_pattern_extension ctxt f epat
+    | None -> match x.ppat_desc with
     | Ppat_construct (({txt=Lident ("()"|"[]" as x);_}), None) ->
         pp f  "%s" x
     | Ppat_any -> pp f "_";
@@ -542,13 +544,21 @@ and simple_pattern ctxt (f:Format.formatter) (x:pattern) : unit =
     | Ppat_extension e -> extension ctxt f e
     | Ppat_open (lid, p) ->
         let with_paren =
-        match p.ppat_desc with
+        match Extensions.Pattern.of_ast p with
+        | Some epat -> begin match epat with
+        | Epat_immutable_array (Iapat_immutable_array _) -> false
+        end
+        | None -> match p.ppat_desc with
         | Ppat_array _ | Ppat_record _
         | Ppat_construct (({txt=Lident ("()"|"[]");_}), None) -> false
         | _ -> true in
         pp f "@[<2>%a.%a @]" longident_loc lid
           (paren with_paren @@ pattern1 ctxt) p
     | _ -> paren true (pattern ctxt) f x
+
+and simple_pattern_extension ctxt f : Extensions.Pattern.t -> unit = function
+  | Epat_immutable_array (Iapat_immutable_array l) ->
+      pp f "@[<2>[:%a:]@]"  (list (pattern1 ctxt) ~sep:";") l
 
 and maybe_local_pat ctxt is_local f p =
   if is_local then
@@ -619,6 +629,8 @@ and sugar_expr ctxt f e =
           match path, other_args with
           | Lident "Array", i :: rest ->
             print ".(" "" ")" (expression ctxt) [i] rest
+          | Lident "Immutable_array", i :: rest ->
+            print ".#(" "" ")" (expression ctxt) [i] rest
           | Lident "String", i :: rest ->
             print ".[" "" "]" (expression ctxt) [i] rest
           | Ldot (Lident "Bigarray", "Array1"), i1 :: rest ->

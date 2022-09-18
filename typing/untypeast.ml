@@ -357,7 +357,16 @@ let pattern : type k . _ -> k T.general_pattern -> _ = fun sub pat ->
     | Tpat_record (list, closed) ->
         Ppat_record (List.map (fun (lid, _, pat) ->
             map_loc sub lid, sub.pat sub pat) list, closed)
-    | Tpat_array list -> Ppat_array (List.map (sub.pat sub) list)
+    | Tpat_array (am, list) -> begin
+        let pats = List.map (sub.pat sub) list in
+        match am with
+        | Mutable   -> Ppat_array pats
+        | Immutable -> (Extensions.Pattern.ast_of
+                          ~loc
+                          Immutable_arrays
+                          (Epat_immutable_array (Iapat_immutable_array pats))
+                       ).ppat_desc
+      end
     | Tpat_lazy p -> Ppat_lazy (sub.pat sub p)
 
     | Tpat_exception p -> Ppat_exception (sub.pat sub p)

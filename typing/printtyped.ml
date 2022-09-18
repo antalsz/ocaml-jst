@@ -265,8 +265,10 @@ and pattern : type k . _ -> _ -> k general_pattern -> unit = fun i ppf x ->
   | Tpat_record (l, _c) ->
       line i ppf "Tpat_record\n";
       list i longident_x_pattern ppf l;
-  | Tpat_array (l) ->
-      line i ppf "Tpat_array\n";
+  | Tpat_array (am, l) ->
+      line i ppf "Tpat_array %s\n" (match am with
+                                    | Mutable   -> "mutable"
+                                    | Immutable -> "immutable");
       list i pattern ppf l;
   | Tpat_lazy p ->
       line i ppf "Tpat_lazy\n";
