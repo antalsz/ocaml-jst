@@ -1498,14 +1498,14 @@ and transl_generic_array ~scopes ~immutable e expr_list =
   let e = () in (* No using [e] in the sequel *)
   let _ = e in
   let ll = transl_list ~scopes expr_list in
-  let array_as_makearray () =
-    let imm_array =
-      Lprim (Pmakearray (kind, Immutable, mode), ll, loc)
-    in
-    if immutable
-    then imm_array
-    else Lprim (Pduparray (kind, Mutable), [imm_array], loc)
+  let makearray mutability =
+    Lprim (Pmakearray (kind, mutability, mode), ll, loc)
   in
+  let duparray mutability array =
+    Lprim (Pduparray (kind, mutability), [array], loc)
+  in
+  let imm_array = makearray Immutable in
+  let mutability = if immutable then Immutable else Mutable in
   begin try
     (* For native code the decision as to which compilation strategy to
        use is made later.  This enables the Flambda passes to lift certain
@@ -1519,22 +1519,24 @@ and transl_generic_array ~scopes ~immutable e expr_list =
     if is_local_mode mode then raise Not_constant;
     begin match List.map extract_constant ll with
     | exception Not_constant when kind = Pfloatarray ->
-        (* We cannot currently lift [Pintarray] arrays safely in Flambda
-           because [caml_modify] might be called upon them (e.g. from
-           code operating on polymorphic arrays, or functions such as
+        (* We cannot currently lift mutable [Pintarray] arrays safely in Flambda
+           because [caml_modify] might be called upon them (e.g.  from code
+           operating on polymorphic arrays, or functions such as
            [caml_array_blit].
-           To avoid having different Lambda code for
-           bytecode/Closure vs.  Flambda, we always generate
-           [Pduparray] here, and deal with it in [Bytegen] (or in
-           the case of Closure, in [Cmmgen], which already has to
-           handle [Pduparray Pmakearray Pfloatarray] in the case
-           where the array turned out to be inconstant).
-           When not [Pfloatarray], the exception propagates to the handler
-           below. *)
-        array_as_makearray ()
+           To avoid having different Lambda code for bytecode/Closure vs.
+           Flambda, we always generate [Pduparray] for mutable arrays here, and
+           deal with it in [Bytegen] (or in the the case of Closure, in
+           [Cmmgen], which already has to handle [Pduparray Pmakearray
+           Pfloatarray] in the case where the array turned out to be
+           inconstant).  When not [Pfloatarray], the exception propagates to the
+           handler below. *)
+        if immutable then
+          imm_array (* CR aspectorzabusky: Can I get away without the [Pduparray] here? *)
+        else
+          duparray Mutable imm_array
     | cl ->
         if Config.flambda2 then
-          array_as_makearray ()
+          imm_array
         else
           let const = (* CR aspectorzabusky: Do we construct things correctly in this case? *)
             match kind with
@@ -1545,12 +1547,12 @@ and transl_generic_array ~scopes ~immutable e expr_list =
             | Pgenarray ->
               raise Not_constant    (* can this really happen? *)
           in
-          Lprim (Pduparray (kind, if immutable then Immutable else Mutable),
-                 [const],
-                 loc)
+          (* CR aspectorzabusky: Can we avoid the [Pduparray] if we're immutable
+             here? *)
+          duparray mutability const
     end
   with Not_constant ->
-    array_as_makearray ()
+    makearray mutability
   end
 
 (* Wrapper for class/module compilation,
