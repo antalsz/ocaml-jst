@@ -395,8 +395,8 @@ and expression i ppf x =
   | Texp_list_comprehension comp ->
       line i ppf "Texp_list_comprehension\n";
       comprehension i ppf comp
-  | Texp_array_comprehension comp ->
-      line i ppf "Texp_array_comprehension\n";
+  | Texp_array_comprehension (amut, comp) ->
+      line i ppf "Texp_array_comprehension %a\n" fmt_mutable_flag amut;
       comprehension i ppf comp
   | Texp_ifthenelse (e1, e2, eo) ->
       line i ppf "Texp_ifthenelse\n";

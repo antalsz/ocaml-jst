@@ -277,7 +277,7 @@ and expression_desc =
        opinions; it was more marginal than [Tpat_array], but the consistency
        with [Tpat_array] was another reason I liked this *)
   | Texp_list_comprehension of comprehension
-  | Texp_array_comprehension of comprehension
+  | Texp_array_comprehension of mutable_flag * comprehension
   | Texp_ifthenelse of expression * expression * expression option
   | Texp_sequence of expression * expression
   | Texp_while of {

@@ -130,7 +130,7 @@ and expression_desc =
       expression * Longident.t loc * label_description * expression
   | Texp_array of mutable_flag * expression list
   | Texp_list_comprehension of comprehension
-  | Texp_array_comprehension of comprehension
+  | Texp_array_comprehension of mutable_flag * comprehension
   | Texp_ifthenelse of expression * expression * expression option
   | Texp_sequence of expression * expression
   | Texp_while of {

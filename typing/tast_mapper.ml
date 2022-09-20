@@ -352,8 +352,8 @@ let expr sub x =
         Texp_array (am, List.map (sub.expr sub) list)
     | Texp_list_comprehension comp ->
         Texp_list_comprehension (map_comprehension comp)
-    | Texp_array_comprehension comp ->
-        Texp_array_comprehension (map_comprehension comp)
+    | Texp_array_comprehension (amut, comp) ->
+        Texp_array_comprehension (amut, map_comprehension comp)
     | Texp_ifthenelse (exp1, exp2, expo) ->
         Texp_ifthenelse (
           sub.expr sub exp1,

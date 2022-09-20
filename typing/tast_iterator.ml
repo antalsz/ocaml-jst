@@ -235,7 +235,7 @@ let expr sub {exp_extra; exp_desc; exp_env; _} =
       sub.expr sub exp2
   | Texp_array (_, list) -> List.iter (sub.expr sub) list
   | Texp_list_comprehension { comp_body; comp_clauses }
-  | Texp_array_comprehension { comp_body; comp_clauses } ->
+  | Texp_array_comprehension (_, { comp_body; comp_clauses }) ->
       sub.expr sub comp_body;
       List.iter
         (function

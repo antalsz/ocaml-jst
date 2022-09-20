@@ -67,9 +67,13 @@ type error =
   | Bad_introduction of string * string list
 
 (** The main exception type thrown when desugaring a language extension from an
-    OCaml AST; we also use [failwith] occasionally for internal errors, as well
-    as the occasional [Misc.fatal_errorf]. *)
+    OCaml AST; we also use the occasional [Misc.fatal_errorf]. *)
 exception Error of Location.t * error
+
+let assert_extension_enabled ~loc ext =
+  if not (Clflags.Extension.is_enabled ext) then
+    raise (Error(loc, Disabled_extension ext))
+;;
 
 let report_error ~loc = function
   | Malformed_extension(name, malformed) -> begin
@@ -353,22 +357,21 @@ end = struct
         (ast : ast)
       : ext_ast option =
     let (module AST) = Syntactic_category.ast_module cat in
-    let raise_error err = raise (Error (AST.location ast, err)) in
+    let loc = AST.location ast in
+    let raise_error err = raise (Error (loc, err)) in
     match AST.match_extension ast with
     | None -> None
     | Some ([name], ast) -> begin
         match Clflags.Extension.of_string name with
-        | Some ext ->
-            if Clflags.Extension.is_enabled ext
-            then
-              match Syntactic_category.ast_extension cat ext with
-              | Supported { of_ast; wrap; _ } ->
-                  Some (wrap (of_ast ast))
-              | Unsupported ->
-                  raise_error (Wrong_syntactic_category(ext, AST.plural))
-            else
-              raise_error (Disabled_extension ext)
-        | _ -> raise_error (Unknown_extension name)
+        | Some ext -> begin
+            assert_extension_enabled ~loc ext;
+            match Syntactic_category.ast_extension cat ext with
+            | Supported { of_ast; wrap; _ } ->
+                Some (wrap (of_ast ast))
+            | Unsupported ->
+                raise_error (Wrong_syntactic_category(ext, AST.plural))
+          end
+        | None -> raise_error (Unknown_extension name)
       end
     | Some ([], _) ->
         raise_error Unnamed_extension
@@ -386,6 +389,7 @@ end = struct
     let raise_error err = raise (Error(loc, err)) in
     match Syntactic_category.ast_extension cat extn with
     | Supported { unwrap; ast_of; _ } -> begin
+        assert_extension_enabled ~loc extn;
         match unwrap east with
         | Some east' ->
             AST.make_extension

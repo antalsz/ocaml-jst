@@ -50,8 +50,10 @@ module Comprehensions : sig
   type comprehension_expr =
     | Cexp_list_comprehension  of comprehension
     (** [BODY ...CLAUSES...] *)
-    | Cexp_array_comprehension of comprehension
-    (** [|BODY ...CLAUSES...|] *)
+    | Cexp_array_comprehension of Asttypes.mutable_flag * comprehension
+    (** [|BODY ...CLAUSES...|] (flag = Mutable)
+        [:BODY ...CLAUSES...:] (flag = Immutable)
+          (only allowed with [-extension Immutable_arrays]) *)
 end
 
 (** The ASTs for immutable arrays.  When we merge this upstream, we'll merge

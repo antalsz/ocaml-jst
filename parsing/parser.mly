@@ -2556,7 +2556,9 @@ comprehension_clause:
   | comprehension(LBRACKET,RBRACKET)
       { Extensions.Comprehensions.Cexp_list_comprehension  $1 }
   | comprehension(LBRACKETBAR,BARRBRACKET)
-      { Extensions.Comprehensions.Cexp_array_comprehension $1 }
+      { Extensions.Comprehensions.Cexp_array_comprehension (Mutable, $1) }
+  | comprehension(LBRACKETCOLON,COLONRBRACKET)
+      { Extensions.Comprehensions.Cexp_array_comprehension (Immutable, $1) }
 ;
 
 %inline comprehension_expr:

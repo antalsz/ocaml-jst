@@ -1,3 +1,4 @@
+open Asttypes
 open Parsetree
 open Extensions_parsing
 
@@ -9,7 +10,7 @@ module Comprehensions = struct
   type iterator =
     | Range of { start     : expression
                ; stop      : expression
-               ; direction : Asttypes.direction_flag }
+               ; direction : direction_flag }
     | In of expression
 
   type clause_binding =
@@ -28,7 +29,7 @@ module Comprehensions = struct
 
   type comprehension_expr =
     | Cexp_list_comprehension  of comprehension
-    | Cexp_array_comprehension of comprehension
+    | Cexp_array_comprehension of mutable_flag * comprehension
 
   (* CR aspectorzabusky: Move the general description of how these BNF grammars
      work to the general modular extensions machinery, and then refer back to
@@ -103,7 +104,7 @@ module Comprehensions = struct
   let expr_of_comprehension ~loc ~type_ { body; clauses } =
     comprehension_expr
       ~loc
-      [type_]
+      type_
       (List.fold_right
          (expr_of_clause ~loc)
          clauses
@@ -115,8 +116,19 @@ module Comprehensions = struct
       expr_of_comprehension ~loc:ghost_loc ~type_
     in
     match eexpr with
-    | Cexp_list_comprehension  comp -> expr_of_comprehension_type "list"  comp
-    | Cexp_array_comprehension comp -> expr_of_comprehension_type "array" comp
+    | Cexp_list_comprehension comp ->
+        expr_of_comprehension_type ["list"]  comp
+    | Cexp_array_comprehension (amut, comp) ->
+        expr_of_comprehension_type
+          [ "array"
+          ; match amut with
+            | Mutable   ->
+                "mutable"
+            | Immutable ->
+                assert_extension_enabled ~loc Immutable_arrays;
+                "immutable"
+          ]
+          comp
 
   (** Then, we define how to go from the OCaml AST to the nice AST; this is
       the [..._of_expr] family of expressions, culminating in
@@ -214,8 +226,11 @@ module Comprehensions = struct
     match expand_comprehension_extension_expr expr with
     | ["list"], comp ->
         Cexp_list_comprehension (comprehension_of_expr comp)
-    | ["array"], comp ->
-        Cexp_array_comprehension (comprehension_of_expr comp)
+    | ["array"; "mutable"], comp ->
+        Cexp_array_comprehension (Mutable, comprehension_of_expr comp)
+    | ["array"; "immutable"], comp ->
+        assert_extension_enabled ~loc:expr.pexp_loc Immutable_arrays;
+        Cexp_array_comprehension (Immutable, comprehension_of_expr comp)
     | bad, _ ->
         Desugaring_error.raise expr (Bad_comprehension_extension_point bad)
 end

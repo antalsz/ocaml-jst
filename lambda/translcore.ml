@@ -587,7 +587,10 @@ and transl_exp0 ~in_new_scope ~scopes e =
       let loc = of_location ~scopes e.exp_loc in
       Transl_list_comprehension.comprehension
         ~transl_exp ~scopes ~loc comp
-  | Texp_array_comprehension comp ->
+  | Texp_array_comprehension (_amut, comp) ->
+      (* We can ignore mutability here since we've already checked in in the
+         type checker; both mutable and immutable arrays are created the same
+         way *)
       let loc = of_location ~scopes e.exp_loc in
       let array_kind = Typeopt.array_kind e in
       Transl_array_comprehension.comprehension

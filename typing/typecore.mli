@@ -23,6 +23,7 @@ open Types
 type comprehension_type =
   | List_comprehension
   | Array_comprehension
+  | Iarray_comprehension
 
 (* This variant is used to print improved error messages, and does not affect
    the behavior of the typechecker itself.

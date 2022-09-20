@@ -5,21 +5,21 @@
     As we've started to work on syntactic extensions to OCaml, three concerns
     arose about the mechanics of how we wanted to maintain these changes in our
     fork.
-     
+
     1. We don't want to extend the AST for our fork, as we really want to make
        sure things like ppxen are cross-compatible between upstream and
        [ocaml-jst].  Thankfully, OCaml already provides places to add extra
        syntax: extension points and annotations!  Thus, we have to come up with
        a way of representing our new syntactic constructs in terms of extension
        points (or annotations, but we went with the former).
-     
+
     2. We don't want to actually match on extension points whose names are
        specific strings all over the compiler; that's incredibly messy, and it's
        easy to miss cases, etc.
-       
+
     3. We want to keep different language extensions distinct so that we can add
        them to upstream independently, work on them separately, and so on.
-     
+
     We have come up with a design that addresses those concerns by providing
     both a nice compiler-level interface for working with our syntactic
     extensions as first-class AST nodes, as well as a uniform scheme for
@@ -27,20 +27,20 @@
     One wrinkle is that OCaml has many ASTs, one for each syntactic category
     (expressions, patterns, etc.); we have to provide this facility for each
     syntactic category where we want to provide extensions.
-     
+
     a. For each language extension, we will define a module (e.g.,
        [Comprehensions]), in which we define a proper AST type per syntactic
        category we care about (e.g., [Comprehensions.comprehension_expr] and its
        subcomponents).  This addresses concern (3); we've now contained each
        extension in a module.  But just that would leave them too siloed, so…
-     
+
     b. We define an *overall auxiliary AST* for each syntactic category that's
        just for our language extensions; for expressions, it's called
        [extension_expr].  It contains one constructor for each of the AST types
        defined as described in design point (1).  This addresses concern (2); we
        can now match on actual OCaml constructors, as long as we can get ahold
        of them.  And to do that…
-       
+
     c. We define a general scheme for how we represent language extensions in terms
        of the existing ASTs, and provide a few primitives for consuming/creating
        AST nodes of this form, for each syntactic category.  There's not a lot
@@ -84,7 +84,7 @@ module type AST = sig
   (** The name for this syntactic category in the plural form; used for error
       messages (e.g., "expressions") *)
   val plural : string
-  
+
   (** How to get the location attached to an AST node *)
   val location : ast -> Location.t
 
@@ -168,30 +168,18 @@ module Translate
     ('ast, 'ext_ast) Syntactic_category.t ->
     'ast ->
     'ext_ast option
-  
-  (* CR aspectorzabusky: Is this really the right API?  There's a bit of
-     redundancy, but I don't see how to alleviate it without making uses of
-     [Expression.make_extension] bulkier, and that's right out.  It's also a
-     little weird that this doesn't check if the extension is enabled.  It used
-     to -- the whole function was wrapped in
-     {[
-       if Clflags.Extension.is_enabled extn
-       then
-         ...
-       else
-         failwith
-           (Printf.sprintf
-              "The extension \"%s\" is not enabled\""
-              (Clflags.Extension.to_string extn))
-     ]}
-     -- but we call this function from the parser, and the parser can't throw
-     exceptions or it fails *terribly*.  I think this is okay, because we're
-     guaranteed to check that the extension is enabled when trying to desugar
-     back in the other direction, but it's a little awkward. *)
+
+  (* CR aspectorzabusky: Is this really the right API, with the extension
+     specified twice?  There's a bit of redundancy, but I don't see how to
+     alleviate it without making uses of [Expression.make_extension] bulkier,
+     and that's right out. *)
   (** Interpret an auxiliary extended language extension AST term from the
-      specified extension as a term of the appropriate OCaml AST.  The language
-      extension specified *must* correspond to the constructor of ['ext_ast], or
-      this function will raise a fatal error.  Always succeeds otherwise. *)
+      specified extension as a term of the appropriate OCaml AST.  Raises an
+      error if the language extension is disabled.  The language extension
+      specified *must* correspond to the constructor of ['ext_ast] and provide
+      support for the specified syntactic category, or this function will raise
+      a fatal error or an exception (respectively); these should both be avoided
+      statically, as the relevant values are expected to be literals. *)
   val ast_of_extension_ast :
     ('ast, 'ext_ast) Syntactic_category.t ->
     loc:Location.t ->
@@ -199,3 +187,10 @@ module Translate
     'ext_ast ->
     'ast
 end
+
+(** Require that an extension is enabled, or else throw an exception (of an
+    unexported type) at the provided location saying otherwise.  This is
+    intended to be used in "extensions.ml" when a certain piece of syntax
+    requires two extensions to be enabled at once (e.g., immutable array
+    comprehensions such as [[:x for x = 1 to 10:]]). *)
+val assert_extension_enabled : loc:Location.t -> Clflags.Extension.t -> unit

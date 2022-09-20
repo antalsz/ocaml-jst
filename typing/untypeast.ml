@@ -518,9 +518,11 @@ let expression sub exp =
           expr.pexp_desc
       end
     | Texp_list_comprehension comp ->
-        comprehension ~loc sub (fun comp -> Cexp_list_comprehension comp) comp
-    | Texp_array_comprehension comp ->
-        comprehension ~loc sub (fun comp -> Cexp_array_comprehension comp) comp
+        comprehension
+          ~loc sub (fun comp -> Cexp_list_comprehension comp) comp
+    | Texp_array_comprehension (amut, comp) ->
+        comprehension
+          ~loc sub (fun comp -> Cexp_array_comprehension (amut, comp)) comp
     | Texp_ifthenelse (exp1, exp2, expo) ->
         Pexp_ifthenelse (sub.expr sub exp1,
           sub.expr sub exp2,

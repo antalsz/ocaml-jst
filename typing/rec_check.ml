@@ -611,7 +611,7 @@ let rec expression : Typedtree.expression -> term_judg =
     | Texp_list_comprehension { comp_body; comp_clauses } ->
       join ((expression comp_body << Guard) ::
             comprehension_clauses comp_clauses)
-    | Texp_array_comprehension { comp_body; comp_clauses } ->
+    | Texp_array_comprehension (_, { comp_body; comp_clauses }) ->
       join ((expression comp_body << array_mode exp) ::
             comprehension_clauses comp_clauses)
     | Texp_construct (_, desc, exprs) ->
