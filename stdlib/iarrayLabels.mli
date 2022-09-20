@@ -12,7 +12,7 @@ open! Stdlib
 
 (** Operations on immutable arrays. *)
 
-type 'a t = 'a iarray
+type +'a t = 'a iarray
 (** An alias for the type of immutable arrays. *)
 
 external length : 'a iarray -> int = "%array_length"
