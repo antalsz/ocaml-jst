@@ -31,7 +31,7 @@ type error =
 
 exception Error of Location.t * error
 
-let use_dup_for_constant_arrays_bigger_than = 4
+let use_dup_for_constant_mutable_arrays_bigger_than = 4
 
 (* Forward declaration -- to be filled in by Translmod.transl_module *)
 let transl_module =
@@ -523,8 +523,8 @@ and transl_exp0 ~in_new_scope ~scopes e =
       let makearray mutability =
         Lprim (Pmakearray (kind, mutability, mode), ll, loc)
       in
-      let duparray mutability array =
-        Lprim (Pduparray (kind, mutability), [array], loc)
+      let duparray_to_mutable array =
+        Lprim (Pduparray (kind, Mutable), [array], loc)
       in
       let imm_array = makearray Immutable in
       let lambda_arr_mut : Lambda.mutable_flag =
@@ -537,14 +537,16 @@ and transl_exp0 ~in_new_scope ~scopes e =
            use is made later.  This enables the Flambda passes to lift certain
            kinds of array definitions to symbols. *)
         (* Deactivate constant optimization if array is small enough *)
-        if List.length ll <= use_dup_for_constant_arrays_bigger_than
+        if am = Asttypes.Mutable &&
+           List.length ll <= use_dup_for_constant_mutable_arrays_bigger_than
         then begin
           raise Not_constant
         end;
         (* Pduparray only works in Alloc_heap mode *)
         if is_local_mode mode then raise Not_constant;
         begin match List.map extract_constant ll with
-        | exception Not_constant when kind = Pfloatarray ->
+        | exception Not_constant
+          when kind = Pfloatarray && am = Asttypes.Mutable ->
             (* We cannot currently lift mutable [Pintarray] arrays safely in
                Flambda because [caml_modify] might be called upon them
                (e.g. from code operating on polymorphic arrays, or functions
@@ -557,28 +559,25 @@ and transl_exp0 ~in_new_scope ~scopes e =
                inconstant).
                When not [Pfloatarray], the exception propagates to the handler
                below. *)
-            begin match am with
-            | Immutable -> imm_array (* CR aspectorzabusky: Can I get away
-                                        without the [Pduparray] here? *)
-            | Mutable   -> duparray Mutable imm_array
-            end
+            duparray_to_mutable imm_array
         | cl ->
-            if Config.flambda2 then
-              imm_array
-            else
-              (* CR aspectorzabusky: Do we construct things correctly in this
-                 case? *)
-              let const = match kind with
+            let const =
+              if Config.flambda2 then
+                imm_array
+              else
+                (* CR aspectorzabusky: Do we construct things correctly in this
+                   case? *)
+                match kind with
                 | Paddrarray | Pintarray ->
                   Lconst(Const_block(0, cl))
                 | Pfloatarray ->
                   Lconst(Const_float_array(List.map extract_float cl))
                 | Pgenarray ->
                   raise Not_constant    (* can this really happen? *)
-              in
-              (* CR aspectorzabusky: Can we avoid the [Pduparray] if we're
-                 immutable here? *)
-              duparray lambda_arr_mut const
+            in
+            match am with
+            | Mutable   -> duparray_to_mutable const
+            | Immutable -> const
         end
       with Not_constant ->
         makearray lambda_arr_mut
