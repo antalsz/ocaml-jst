@@ -183,7 +183,6 @@ let classify_expression : Typedtree.expression -> sd =
     | Texp_instvar _
     | Texp_tuple _
     | Texp_array _
-    | Texp_immutable_array _
     | Texp_variant _
     | Texp_setfield _
     | Texp_while _
@@ -607,7 +606,7 @@ let rec expression : Typedtree.expression -> term_judg =
         join [expression e; list arg args] << app_mode
     | Texp_tuple exprs ->
       list expression exprs << Guard
-    | Texp_array exprs | Texp_immutable_array exprs ->
+    | Texp_array (_, exprs) ->
       list expression exprs << array_mode exp
     | Texp_list_comprehension { comp_body; comp_clauses } ->
       join ((expression comp_body << Guard) ::

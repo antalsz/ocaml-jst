@@ -128,8 +128,7 @@ and expression_desc =
   | Texp_field of expression * Longident.t loc * label_description
   | Texp_setfield of
       expression * Longident.t loc * label_description * expression
-  | Texp_array of expression list
-  | Texp_immutable_array of expression list
+  | Texp_array of mutable_flag * expression list
   | Texp_list_comprehension of comprehension
   | Texp_array_comprehension of comprehension
   | Texp_ifthenelse of expression * expression * expression option

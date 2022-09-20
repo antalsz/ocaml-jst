@@ -502,16 +502,21 @@ let expression sub exp =
     | Texp_setfield (exp1, lid, _label, exp2) ->
         Pexp_setfield (sub.expr sub exp1, map_loc sub lid,
           sub.expr sub exp2)
-    | Texp_array list ->
-        Pexp_array (List.map (sub.expr sub) list)
-    | Texp_immutable_array list ->
-        let expr =
-          Extensions.Expression.ast_of
-            ~loc
-            Immutable_arrays
-            (Eexp_immutable_array (Iaexp_immutable_array (List.map (sub.expr sub) list)))
-        in
-        expr.pexp_desc
+    | Texp_array (am, list) -> begin
+        (* Can be inlined when we get to upstream immutable arrays *)
+        let plist = List.map (sub.expr sub) list in
+        match am with
+        | Mutable ->
+            Pexp_array plist
+        | Immutable ->
+          let expr =
+            Extensions.Expression.ast_of
+              ~loc
+              Immutable_arrays
+              (Eexp_immutable_array (Iaexp_immutable_array plist))
+          in
+          expr.pexp_desc
+      end
     | Texp_list_comprehension comp ->
         comprehension ~loc sub (fun comp -> Cexp_list_comprehension comp) comp
     | Texp_array_comprehension comp ->

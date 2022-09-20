@@ -348,10 +348,8 @@ let expr sub x =
           ld,
           sub.expr sub exp2
         )
-    | Texp_array list ->
-        Texp_array (List.map (sub.expr sub) list)
-    | Texp_immutable_array list ->
-        Texp_immutable_array (List.map (sub.expr sub) list)
+    | Texp_array (am, list) ->
+        Texp_array (am, List.map (sub.expr sub) list)
     | Texp_list_comprehension comp ->
         Texp_list_comprehension (map_comprehension comp)
     | Texp_array_comprehension comp ->
