@@ -258,7 +258,9 @@ let () =
   assert (Iarray.memq 2 [:1;2;3:]);
   assert (not (Iarray.memq 2 [::]));
   assert (not (Iarray.memq (ref 3) [:ref 1; ref 2; ref 3:]));
-  assert (not (Iarray.memq [:1;2;3:] [:[:1;2;3:];[:2;3;4:];[:0:]:]));
+  (* The below tests immutable arrays of *mutable* arrays because physical
+     equality is only guaranteed to be distinct for mutable values *)
+  assert (not (Iarray.memq [|1;2;3|] [:[|1;2;3|];[|2;3;4|];[|0|]:]));
   assert (Iarray.memq 1 (Iarray.make 100 1));
   assert (not (Iarray.memq (ref 1) (Iarray.make 100 (ref 1))));
 ;;
