@@ -329,6 +329,12 @@ let fold_type_expr f init ty =
     let result = f init ty in
     List.fold_left f result tyl
   | Tpackage (_, _, l)  -> List.fold_left f init l
+  | Tdimension_identity            -> init
+  | Tdimension_base _              -> init
+  | Tdimension_multiply (ty1, ty2) ->
+    let result = f init ty1 in
+    f result ty2
+  | Tdimension_inverse ty          -> f init ty
 
 let iter_type_expr f ty =
   fold_type_expr (fun () v -> f v) () ty
@@ -517,6 +523,10 @@ let rec copy_type_desc ?(keep_names=false) f = function
       let tyl = List.map (fun x -> norm_univar (f x)) tyl in
       Tpoly (f ty, tyl)
   | Tpackage (p, n, l)  -> Tpackage (p, n, List.map f l)
+  | Tdimension_identity            -> Tdimension_identity
+  | Tdimension_base dim            -> Tdimension_base dim
+  | Tdimension_multiply (ty1, ty2) -> Tdimension_multiply (f ty1, f ty2)
+  | Tdimension_inverse ty          -> Tdimension_inverse (f ty)
 
 (* Utilities for copying *)
 

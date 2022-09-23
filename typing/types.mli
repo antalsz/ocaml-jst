@@ -129,6 +129,23 @@ and type_desc =
   | Tpackage of Path.t * Longident.t list * type_expr list
   (** Type of a first-class module (a.k.a package). *)
 
+  | Tdimension_identity
+  (** The identity element for dimensions/units of measure:
+      [Tdimension_identity ==> [<1>]
+      Someday may be extended to any (rational) scalar *)
+
+  | Tdimension_base of string
+  (** Base dimensions/units of measure:
+      [Tdimension_base "dim"] ==> [<"dim">] *)
+
+  | Tdimension_multiply of type_expr * type_expr
+  (** Multiplication of dimensions/units of measure:
+      [Tdimension_multiply (d1,d2)] ==> [<d1 * d2>] *)
+
+  | Tdimension_inverse of type_expr
+  (** The inverse of a dimension/units of measure expression:
+      [Tdimension_inverse d] ==> [<d^-1>] *)
+
 and arrow_desc =
   arg_label * alloc_mode * alloc_mode
 
@@ -614,3 +631,5 @@ type value_mode =
   (* See Btype.Value_mode *)
   { r_as_l : alloc_mode;
     r_as_g : alloc_mode; }
+
+val dimension_kind_error : string -> _

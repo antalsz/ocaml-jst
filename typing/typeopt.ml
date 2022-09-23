@@ -93,8 +93,14 @@ let classify env ty =
              Maybe we should emit a warning. *)
           Any
       end
-  | Tarrow _ | Ttuple _ | Tpackage _ | Tobject _ | Tnil | Tvariant _ ->
+  | Tarrow _ | Ttuple _ | Tpackage _ | Tobject _ | Tnil | Tvariant _
+    ->
       Addr
+  (* We can't rule out dimension types occuring here without kinds *)
+  | Tdimension_identity | Tdimension_base _
+  | Tdimension_multiply _ | Tdimension_inverse _
+    ->
+      Types.dimension_kind_error "typeopt"
   | Tlink _ | Tsubst _ | Tpoly _ | Tfield _ ->
       assert false
 

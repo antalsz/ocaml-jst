@@ -207,6 +207,10 @@ let rec immediate_subtypes : type_expr -> type_expr list = fun ty ->
   | Tvar _ | Tunivar _ -> []
   | Tpoly (pty, _) -> [pty]
   | Tconstr (_path, tys, _) -> tys
+  (* dimension expressions here would be a kind error *)
+  | Tdimension_identity | Tdimension_base _
+  | Tdimension_multiply _ | Tdimension_inverse _ ->
+      Types.dimension_kind_error "separability, immediate_subtypes"
 
 and immediate_subtypes_object_row acc ty = match (Ctype.repr ty).desc with
   | Tnil -> acc
@@ -452,28 +456,33 @@ let check_type
     let hyps = Hyps.add ty m hyps in
     match (ty.desc, m) with
     (* Impossible case due to the call to [Ctype.repr]. *)
-    | (Tlink _            , _      ) -> assert false
+    | (Tlink _                , _      ) -> assert false
     (* Impossible case (according to comment in [typing/types.mli]. *)
-    | (Tsubst(_)          , _      ) -> assert false
+    | (Tsubst(_)              , _      ) -> assert false
+    (* Dimensions have no values and are thus trivially separable *)
+    | ( Tdimension_identity  , _      )
+    | ( Tdimension_multiply _, _      )
+    | ( Tdimension_inverse _ , _      )
+    | ( Tdimension_base _    , _      ) -> empty
     (* "Indifferent" case, the empty context is sufficient. *)
-    | (_                  , Ind    ) -> empty
+    | (_                     , Ind    ) -> empty
     (* Variable case, add constraint. *)
-    | (Tvar(alpha)        , m      ) ->
+    | (Tvar(alpha)           , m      ) ->
         TVarMap.singleton {text = alpha; id = ty.Types.id} m
     (* "Separable" case for constructors with known memory representation. *)
-    | (Tarrow _           , Sep    )
-    | (Ttuple _           , Sep    )
-    | (Tvariant(_)        , Sep    )
-    | (Tobject(_,_)       , Sep    )
-    | ((Tnil | Tfield _)  , Sep    )
-    | (Tpackage(_,_,_)    , Sep    ) -> empty
+    | (Tarrow _              , Sep    )
+    | (Ttuple _              , Sep    )
+    | (Tvariant(_)           , Sep    )
+    | (Tobject(_,_)          , Sep    )
+    | ((Tnil | Tfield _)     , Sep    )
+    | (Tpackage(_,_,_)       , Sep    ) -> empty
     (* "Deeply separable" case for these same constructors. *)
-    | (Tarrow _           , Deepsep)
-    | (Ttuple _           , Deepsep)
-    | (Tvariant(_)        , Deepsep)
-    | (Tobject(_,_)       , Deepsep)
-    | ((Tnil | Tfield _)  , Deepsep)
-    | (Tpackage(_,_,_)    , Deepsep) ->
+    | (Tarrow _              , Deepsep)
+    | (Ttuple _              , Deepsep)
+    | (Tvariant(_)           , Deepsep)
+    | (Tobject(_,_)          , Deepsep)
+    | ((Tnil | Tfield _)     , Deepsep)
+    | (Tpackage(_,_,_)       , Deepsep) ->
         let tys = immediate_subtypes ty in
         let on_subtype context ty =
           context ++ check_type (Hyps.guard hyps) ty Deepsep in
@@ -498,11 +507,11 @@ let check_type
        variable cannot be extracted by constraints (this would be
        a scope violation), so they could be ignored if they occur
        under a separating type constructor. *)
-    | (Tpoly(pty,_)       , m      ) ->
+    | (Tpoly(pty,_)          , m      ) ->
         check_type hyps pty m
-    | (Tunivar(_)         , _      ) -> empty
+    | (Tunivar(_)            , _      ) -> empty
     (* Type constructor case. *)
-    | (Tconstr(path,tys,_), m      ) ->
+    | (Tconstr(path,tys,_)   , m      ) ->
         let msig = (Env.find_type path env).type_separability in
         let on_param context (ty, m_param) =
           let hyps = match m_param with

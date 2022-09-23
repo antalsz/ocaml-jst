@@ -39,6 +39,10 @@ and type_desc =
   | Tunivar of string option
   | Tpoly of type_expr * type_expr list
   | Tpackage of Path.t * Longident.t list * type_expr list
+  | Tdimension_identity
+  | Tdimension_base of string
+  | Tdimension_multiply of type_expr * type_expr
+  | Tdimension_inverse of type_expr
 
 and arrow_desc =
   arg_label * alloc_mode * alloc_mode
@@ -504,3 +508,6 @@ let signature_item_id = function
 type value_mode =
   { r_as_l : alloc_mode;
     r_as_g : alloc_mode; }
+
+let dimension_kind_error =
+  Misc.fatal_errorf "Dimension kind error: %s"

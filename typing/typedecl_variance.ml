@@ -124,6 +124,12 @@ let compute_variance env visited vari ty =
           Variance.(if mem Pos vari || mem Neg vari then full else unknown)
         in
         List.iter (compute_variance_rec v) tyl
+    | Tdimension_identity | Tdimension_base _ -> ()
+    | Tdimension_multiply (ty1, ty2) ->
+        compute_same ty1;
+        compute_same ty2
+    | Tdimension_inverse ty ->
+        compute_same ty
   in
   compute_variance_rec vari ty
 
