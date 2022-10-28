@@ -133,12 +133,12 @@ Iarray.length iarray, Iarray.length ifarray;;
 - : int * int = (5, 5)
 |}];;
 
-iarray.#(0), Iarray.get iarray 1, ifarray.#(2), Iarray.get ifarray 3;;
+iarray.:(0), Iarray.get iarray 1, ifarray.:(2), Iarray.get ifarray 3;;
 [%%expect{|
 - : int * int * float * float = (1, 2, 3.5, 4.5)
 |}];;
 
-iarray.#(10)
+iarray.:(10)
 [%%expect{|
 Exception: Invalid_argument "index out of bounds".
 |}];;
@@ -148,7 +148,7 @@ Iarray.get iarray (-1);;
 Exception: Invalid_argument "index out of bounds".
 |}];;
 
-ifarray.#(-10);;
+ifarray.:(-10);;
 [%%expect{|
 Exception: Invalid_argument "index out of bounds".
 |}];;
@@ -243,13 +243,13 @@ Iarray.of_array mfarray;;
 - : float iarray = [:1.5; 2.5; 3.5; 4.5; 5.5:]
 |}];;
 
-(* [Array] has an analog to [IArray.to_array] *)
+(* [Array] has an analog to [Iarray.to_array] *)
 Array.of_iarray ifarray;;
 [%%expect{|
 - : float array = [|1.5; 2.5; 3.5; 4.5; 5.5|]
 |}];;
 
-(* [Array] has an analog to [IArray.of_array] *)
+(* [Array] has an analog to [Iarray.of_array] *)
 Array.to_iarray marray;;
 [%%expect{|
 - : int iarray = [:1; 2; 3; 4; 5:]

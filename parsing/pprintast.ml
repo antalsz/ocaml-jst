@@ -629,8 +629,6 @@ and sugar_expr ctxt f e =
           match path, other_args with
           | Lident "Array", i :: rest ->
             print ".(" "" ")" (expression ctxt) [i] rest
-          | Lident "Immutable_array", i :: rest ->
-            print ".#(" "" ")" (expression ctxt) [i] rest
           | Lident "String", i :: rest ->
             print ".[" "" "]" (expression ctxt) [i] rest
           | Ldot (Lident "Bigarray", "Array1"), i1 :: rest ->

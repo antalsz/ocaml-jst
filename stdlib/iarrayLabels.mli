@@ -22,10 +22,13 @@ external get : 'a iarray -> int -> 'a = "%array_safe_get"
 (** [get a n] returns the element number [n] of immutable array [a].
    The first element has number 0.
    The last element has number [length a - 1].
-   You can also write [a.#(n)] instead of [get a n].
+   You can also write [a.:(n)] instead of [get a n].
 
    @raise Invalid_argument
    if [n] is outside the range 0 to [(length a - 1)]. *)
+
+external ( .:() ) : 'a iarray -> int -> 'a = "%array_safe_get"
+(** A synonym for [get]. *)
 
 external make : int -> 'a -> 'a iarray = "caml_make_vect"
 (** [make n x] returns a fresh immutable array of length [n],
@@ -61,7 +64,7 @@ val make_matrix :
    second dimension [dimy]. All the elements of this new matrix
    are initially physically equal to [e].
    The element ([x,y]) of a matrix [m] is accessed
-   with the notation [m.#(x).#(y)].
+   with the notation [m.:(x).:(y)].
 
    @raise Invalid_argument if [dimx] or [dimy] is negative or
    greater than {!Sys.max_array_length}.
@@ -120,7 +123,7 @@ val of_array : 'a array -> 'a iarray
 val iter : f:('a -> unit) -> 'a iarray -> unit
 (** [iter ~f a] applies function [f] in turn to all
    the elements of [a].  It is equivalent to
-   [f a.#(0); f a.#(1); ...; f a.#(length a - 1); ()]. *)
+   [f a.:(0); f a.:(1); ...; f a.:(length a - 1); ()]. *)
 
 val iteri : f:(int -> 'a -> unit) -> 'a iarray -> unit
 (** Same as {!iter}, but the
@@ -130,7 +133,7 @@ val iteri : f:(int -> 'a -> unit) -> 'a iarray -> unit
 val map : f:('a -> 'b) -> 'a iarray -> 'b iarray
 (** [map ~f a] applies function [f] to all the elements of [a],
    and builds an immutable array with the results returned by [f]:
-   [[| f a.#(0); f a.#(1); ...; f a.#(length a - 1) |]]. *)
+   [[| f a.:(0); f a.:(1); ...; f a.:(length a - 1) |]]. *)
 
 val mapi : f:(int -> 'a -> 'b) -> 'a iarray -> 'b iarray
 (** Same as {!map}, but the
@@ -139,12 +142,12 @@ val mapi : f:(int -> 'a -> 'b) -> 'a iarray -> 'b iarray
 
 val fold_left : f:('a -> 'b -> 'a) -> init:'a -> 'b iarray -> 'a
 (** [fold_left ~f ~init a] computes
-   [f (... (f (f init a.#(0)) a.#(1)) ...) a.#(n-1)],
+   [f (... (f (f init a.:(0)) a.:(1)) ...) a.:(n-1)],
    where [n] is the length of the immutable array [a]. *)
 
 val fold_right : f:('b -> 'a -> 'a) -> 'b iarray -> init:'a -> 'a
 (** [fold_right ~f a ~init] computes
-   [f a.#(0) (f a.#(1) ( ... (f a.#(n-1) init) ...))],
+   [f a.:(0) (f a.:(1) ( ... (f a.:(n-1) init) ...))],
    where [n] is the length of the immutable array [a]. *)
 
 
@@ -160,7 +163,7 @@ val iter2 : f:('a -> 'b -> unit) -> 'a iarray -> 'b iarray -> unit
 val map2 : f:('a -> 'b -> 'c) -> 'a iarray -> 'b iarray -> 'c iarray
 (** [map2 ~f a b] applies function [f] to all the elements of [a]
    and [b], and builds an immutable array with the results returned by [f]:
-   [[| f a.#(0) b.#(0); ...; f a.#(length a - 1) b.#(length b - 1)|]].
+   [[| f a.:(0) b.:(0); ...; f a.:(length a - 1) b.:(length b - 1)|]].
    @raise Invalid_argument if the immutable arrays are not the same size. *)
 
 
