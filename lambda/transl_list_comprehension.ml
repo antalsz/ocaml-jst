@@ -14,12 +14,12 @@ open Lambda_utils.Make
     An additional choice we make is to build all these intermediate data
     structures on the stack (i.e., make them [local_]); again, this is for
     efficiency, as it means we don't need to get the structure of these
-    difference lists involved with the garbage collector.  Since we can only
-    generate global lists with list comprehensions (see the comment "What modes
-    should comprehensions use?" in [typecore.ml]), we need a type that is
-    spine-local but element-global; we thus define a custom type of such snoc
-    lists, and define our difference lists in terms of that, in the internal
-    module [CamlinternalComprehension]:
+    difference lists involved with the garbage collector.  Since we can
+    currently only generate global lists with list comprehensions (see the
+    comment "What modes should comprehensions use?" in [typecore.ml]), we need a
+    type that is spine-local but element-global; we thus define a custom type of
+    such snoc lists, and define our difference lists in terms of that, in the
+    internal module [CamlinternalComprehension]:
     {[
       type 'a rev_list =
         | Nil
@@ -30,62 +30,62 @@ open Lambda_utils.Make
     We then work exclusively in terms of [local_ 'a rev_dlist] values, reversing
     them into a global [list] only at the very end.
 
-   We desugar each iterator of a list comprehension into the application of a
-   tail-recursive higher-order function analogous to `concat_map`, whose type is
-   of the following form:
-   {[
-     ...iterator arguments... ->
-     local_ ('elt -> local_ 'res rev_dlist) ->
-     local_ 'res rev_dlist
-   ]}
-   Here, the [...iterator arguments...] define the sequence of values to be
-   iterated over (the [seq] of a [for pat in seq] iterator, or the [start] and
-   [end] of a [for x = start to/downto end] iterator); the function argument is
-   then to be called once for each item.  What goes in the function?  It will be
-   the next iterator, desugared in the same way.  At any time, a [when] clause
-   might intervene, which is simply desugared into a conditional that gates
-   entering the next phase of the translation.
+    We desugar each iterator of a list comprehension into the application of a
+    tail-recursive higher-order function analogous to `concat_map`, whose type
+    is of the following form:
+    {[
+      ...iterator arguments... ->
+      local_ ('elt -> local_ 'res rev_dlist) ->
+      local_ 'res rev_dlist
+    ]}
+    Here, the [...iterator arguments...] define the sequence of values to be
+    iterated over (the [seq] of a [for pat in seq] iterator, or the [start] and
+    [end] of a [for x = start to/downto end] iterator); the function argument is
+    then to be called once for each item.  What goes in the function?  It will
+    be the next iterator, desugared in the same way.  At any time, a [when]
+    clause might intervene, which is simply desugared into a conditional that
+    gates entering the next phase of the translation.
 
-   Eventually, we reach the body, which is placed into the body of the innermost
-   translated function; it produces the single-item reversed difference list
-   (alternatively, snocs its generated value onto the accumulator).  Because
-   each function is analogous to `concat_map`, this builds up the correct list
-   in the end.  The whole thing is then passed into a reversal function,
-   building the final list.
+    Eventually, we reach the body, which is placed into the body of the
+    innermost translated function; it produces the single-item reversed
+    difference list (alternatively, snocs its generated value onto the
+    accumulator).  Because each function is analogous to `concat_map`, this
+    builds up the correct list in the end.  The whole thing is then passed into
+    a reversal function, building the final list.
 
-   For example, consider the following list comprehension:
-   {[
-     [x+y for x = 1 to 3 when x <> 2 for y in [10*x; 100*x]]
-     (* = [11; 101; 33; 303] *)
-   ]}
-   This translates to the (Lambda equivalent of) the following:
-   {[
-     (* Convert the result to a normal list *)
-     CamlinternalComprehension.rev_list_to_list (
-       (* for x = 1 to 3 *)
-       let start = 1 in
-       let stop  = 3 in
-       CamlinternalComprehension.rev_dlist_concat_iterate_up
-         start stop
-         (fun x acc_x -> local_
-           (* when x <> 2 *)
-           if x <> 2
-           then
-             (* for y in [10*x; 100*x] *)
-             let iter_list = [10*x; 100*x] in
-             CamlinternalComprehension.rev_dlist_concat_map
-               iter_list
-               (fun y acc_y -> local_
-                 (* The body: x+y *)
-                 Snoc { init = acc_y; last = x*y })
-               acc_x
-           else
-             acc_x)
-         Nil)
-        ]}
+    For example, consider the following list comprehension:
+    {[
+      [x+y for x = 1 to 3 when x <> 2 for y in [10*x; 100*x]]
+      (* = [11; 101; 33; 303] *)
+    ]}
+    This translates to the (Lambda equivalent of) the following:
+    {[
+      (* Convert the result to a normal list *)
+      CamlinternalComprehension.rev_list_to_list (
+        (* for x = 1 to 3 *)
+        let start = 1 in
+        let stop  = 3 in
+        CamlinternalComprehension.rev_dlist_concat_iterate_up
+          start stop
+          (fun x acc_x -> local_
+            (* when x <> 2 *)
+            if x <> 2
+            then
+              (* for y in [10*x; 100*x] *)
+              let iter_list = [10*x; 100*x] in
+              CamlinternalComprehension.rev_dlist_concat_map
+                iter_list
+                (fun y acc_y -> local_
+                  (* The body: x+y *)
+                  Snoc { init = acc_y; last = x*y })
+                acc_x
+            else
+              acc_x)
+          Nil)
+         ]}
 
-   See [CamlinternalComprehension] the types and functions we desugar to, along
-   with some more documentation. *)
+    See [CamlinternalComprehension] the types and functions we desugar to, along
+    with some more documentation. *)
 
 (** An implementation note: Many of the functions in this file need to translate
     expressions from Typedtree to Lambda; to avoid strange dependency ordering,

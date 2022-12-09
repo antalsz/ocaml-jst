@@ -6818,28 +6818,33 @@ and type_comprehension_expr ~loc ~env ~ty_expected ~expected_mode:_ cexpr =
      Thus, the question turns on what mode we are to use for the output, the
      mode of [body] and the entire comprehension.  While it would be nice to be
      polymorphic here, *we are unfortunately currently constrained to check
-     comprehensions at global mode*.  The reasons for this are separate for list
-     and array comprehensions:
+     comprehensions at global mode*.  This is not a fundamental limitation, and
+     would just require updating the translation code to be layout-aware as it
+     happens after inference.  The changes this would require for list and array
+     comprehensions are different:
 
      - For list comprehensions: List comprehensions are desugared in terms of
-       functions from [CamlinternalComprehension]; as regular OCaml functions,
-       they cannot cannot have the desired (or any) mode polymorphism.  The
-       input can either be marked as [local_] (in which case we cannot create a
-       global list with a list comprehension) or not (in which case we cannot
-       use list comprehensions to iterate over local lists).  Similarly, the
-       output can either be marked as [local_] or not, and that fixes where the
-       allocation is to happen.
+       functions and types from [CamlinternalComprehension]; as part of regular
+       OCaml, they cannot cannot have the desired (or any) mode polymorphism.
+       However, as there are only two modes, we could duplicate the module to
+       contain two nearly-identical copies of the code: one that operates on the
+       current spine-local but element-global intermediate type and constructs a
+       global list at th end; and the other that operates on a very similar
+       spine- *and* element-local intermediate type and constructs a local list
+       at the end.
 
-     - For array comprehensions: We only have global arrays, and do not
-       currently allow there to be such a thing as a local array at all.
+     - For array comprehensions: We currently only have global arrays, and do
+       not currently allow there to be such a thing as a local array at all.  If
+       this changed, we could add mode-directed support for allocating the
+       resulting array apropriately.
 
-     This fully determines the mode situation.  Thus, until we loosen either of
-     these restrictions, we do not pass modes to other functions for
-     typechecking comprehensions.
+     Until we make either of these changes, we do not pass modes to other
+     functions for typechecking comprehensions.
 
-     In order to understand the reasoning about modes for arrays, anywhere we
-     need to provide modes while typechecking comprehensions, we will reference
-     this comment by its incipit (the initial question, right at the start). *)
+     In order to understand the reasoning about modes for comprehensions,
+     anywhere we need to provide modes while typechecking comprehensions, we
+     will reference this comment by its incipit (the initial question, right at
+     the start). *)
   let new_env, comp_clauses =
     type_comprehension_clauses
       ~loc ~env ~comprehension_type ~container_type clauses
