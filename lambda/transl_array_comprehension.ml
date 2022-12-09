@@ -12,30 +12,30 @@ open Lambda_utils.Primitive
     and it’s a [for ... and ...] clause, then we can allocate an array of
     exactly the right size up front (instead of having to grow the generated
     array dynamically, as we usually do).  We call this the *fixed-size array
-    comprehension optimization*.  We cannot do this with nested [for]s, as the 
+    comprehension optimization*.  We cannot do this with nested [for]s, as the
     sizes of iterators further to the right could depend on the values generated
     by those on the left; indeed, this is why we have [for ... and ...] instead
     of just allowing the user to nest [for]s.
-    
+
     In general, there are three major sources of complexity to be aware of in
     this translation:
-     
+
     1. We need to have a resizable array, as most array comprehensions have an
        unknown size (but see point (2)); however, OCaml arrays can't grow or
        shrink, so we have to do this ourselves.
-     
+
     2. We need to perform the fixed-size array comprehension optimization, as
        described above; this requires handling things specially when the
        comprehension has the form [[|BODY for ITER and ITER ... and ITER|]].
        This ends up getting its tentacles throughout the entire module, as we
        want to share a lot of the code but have to parameterize it over these
        two kinds of output.
-     
+
     3. We have to handle the float array optimization, so we can't simply
        allocate arrays in a uniform way; if we don't know what's in the array,
        we have to carefully handle things on the first iteration.  These details
        are more local in scope, but particularly fiddly.
-     
+
     In general, the structure is: we allocate an array and a mutable index
     counter that starts at [0]; each iterator becomes a loop; [when] clauses
     become an [if] expression, same as with lists; and in the body, every time
@@ -45,7 +45,7 @@ open Lambda_utils.Primitive
     array size, and if we would ever exceed it, we double the size of the array.
     This means that at the end, we have to use a subarray operation to cut it
     down to the right size.
-     
+
     In the fixed-size array case, the second source of extra complexity, we have
     to first compute the size of every iterator and multiply them together; in
     both cases, we have to check for overflow, in which case we simply fail.  We
@@ -61,7 +61,7 @@ open Lambda_utils.Primitive
     case; etc.  Various bits of the code make these decisions (for these
     examples: the [Iterator_bindings] module; the [initial_array] and [body]
     functions; and the [Usage] module, all in [transl_array_comprehension.ml]).
-     
+
     Finally, handling the float array optimization also affects the initial
     array and the element assignment (so this ends up being a locus for all the
     sources of complexity).  If the array has an unknown array kind
@@ -74,7 +74,7 @@ open Lambda_utils.Primitive
     the newly-computed first element of the resulting array.  The initial array
     creation is done by the function [initial_array], and the index checking is
     done (among other things) by the function [body].
-     
+
     To see some examples of what this translation looks like, consider the
     following array comprehension:
     {[
@@ -100,7 +100,7 @@ open Lambda_utils.Primitive
             let y = iter_arr.(iter_ix) in
             (* Resize the array if necessary *)
             begin
-              if !index > !array_size then
+              if not (!index < !array_size) then
                 array_size := 2 * !array_size;
                 array      := Array.append !array !array
             end;

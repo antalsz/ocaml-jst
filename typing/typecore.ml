@@ -1026,7 +1026,7 @@ let solve_Ppat_construct ~refine env loc constr no_existentials
         let ty_args, ty_res, ty_ex =
           instance_constructor ?in_pattern constr in
         let equated_types = unify_res ty_res in
-        let ty_args_ty, ty_args_gf = List.split ty_args in 
+        let ty_args_ty, ty_args_gf = List.split ty_args in
         let ty_args_ty, existential_ctyp =
           solve_constructor_annotation env name_list sty ty_args_ty ty_ex in
         ty_args_ty, ty_args_gf, ty_res, equated_types, existential_ctyp
@@ -2079,7 +2079,7 @@ and type_pat_aux
       assert construction_not_used_in_counterexamples;
       type_pat Value sq expected_ty (fun q ->
         let ty_var, mode = solve_Ppat_alias ~refine env q in
-        let mode = mode_cross !env expected_ty mode in 
+        let mode = mode_cross !env expected_ty mode in
         let id =
           enter_variable ~is_as_variable:true loc name mode
             ty_var sp.ppat_attributes
@@ -3845,13 +3845,13 @@ and type_expect_
               (try unify_var env (newvar()) ty_arg
                with Unify _ -> assert false);
               ret_tvar (TypeSet.add ty seen) ty_fun
-          | Tvar _ -> 
-              let v = newvar () in 
-              let rt = get_level ty > get_level v in 
+          | Tvar _ ->
+              let v = newvar () in
+              let rt = get_level ty > get_level v in
               unify_var env v ty;
               rt
-          | _ -> 
-            let v = newvar () in 
+          | _ ->
+            let v = newvar () in
             unify_var env v ty;
             false
       in
@@ -3865,7 +3865,7 @@ and type_expect_
         end;
         let ty = instance funct.exp_type in
         end_def ();
-        let rt = wrap_trace_gadt_instances env (ret_tvar TypeSet.empty) ty in 
+        let rt = wrap_trace_gadt_instances env (ret_tvar TypeSet.empty) ty in
         rt, funct
       in
       let type_sfunct_args sfunct extra_args =
@@ -4236,7 +4236,7 @@ and type_expect_
       let to_unify = Predef.type_array ty in
       with_explanation (fun () ->
         unify_exp_types loc env to_unify (generic_instance ty_expected));
-      let argument_mode = expect_mode_cross env ty mode_global in 
+      let argument_mode = expect_mode_cross env ty mode_global in
       let argl =
         List.map
           (fun sarg -> type_expect env argument_mode sarg (mk_expected ty))
@@ -5180,8 +5180,8 @@ and type_function ?in_function
       let ret_value_mode =
         if region_locked then Value_mode.local_to_regional ret_value_mode
         else ret_value_mode
-      in  
-      let ret_value_mode = mode_cross env ty_res ret_value_mode in 
+      in
+      let ret_value_mode = mode_cross env ty_res ret_value_mode in
       mode_return ret_value_mode,
       Final_arg { partial_mode = Alloc_mode.join [arg_mode; alloc_mode] }
     end
@@ -5776,9 +5776,9 @@ and type_application env app_loc expected_mode position funct funct_mode sargs r
         filter_arrow env (instance funct.exp_type) Nolabel
       in
       if !Clflags.principal then begin
-        end_def (); 
+        end_def ();
         generalize_structure ty_res
-      end; 
+      end;
       let mode = mode_cross env ty_res (Value_mode.of_alloc mres) in
       submode ~loc:app_loc ~env
         mode expected_mode;
@@ -6693,28 +6693,33 @@ and type_comprehension_expr ~loc ~env ~expected_mode:_ ~ty_expected cexpr =
      Thus, the question turns on what mode we are to use for the output, the
      mode of [body] and the entire comprehension.  While it would be nice to be
      polymorphic here, *we are unfortunately currently constrained to check
-     comprehensions at global mode*.  The reasons for this are separate for list
-     and array comprehensions:
+     comprehensions at global mode*.  This is not a fundamental limitation, and
+     would just require updating the translation code to be layout-aware as it
+     happens after inference.  The changes this would require for list and array
+     comprehensions are different:
 
      - For list comprehensions: List comprehensions are desugared in terms of
-       functions from [CamlinternalComprehension]; as regular OCaml functions,
-       they cannot cannot have the desired (or any) mode polymorphism.  The
-       input can either be marked as [local_] (in which case we cannot create a
-       global list with a list comprehension) or not (in which case we cannot
-       use list comprehensions to iterate over local lists).  Similarly, the
-       output can either be marked as [local_] or not, and that fixes where the
-       allocation is to happen.
+       functions and types from [CamlinternalComprehension]; as part of regular
+       OCaml, they cannot cannot have the desired (or any) mode polymorphism.
+       However, as there are only two modes, we could duplicate the module to
+       contain two nearly-identical copies of the code: one that operates on the
+       current spine-local but element-global intermediate type and constructs a
+       global list at th end; and the other that operates on a very similar
+       spine- *and* element-local intermediate type and constructs a local list
+       at the end.
 
-     - For array comprehensions: We only have global arrays, and do not
-       currently allow there to be such a thing as a local array at all.
+     - For array comprehensions: We currently only have global arrays, and do
+       not currently allow there to be such a thing as a local array at all.  If
+       this changed, we could add mode-directed support for allocating the
+       resulting array apropriately.
 
-     This fully determines the mode situation.  Thus, until we loosen either of
-     these restrictions, we do not pass modes to other functions for
-     typechecking comprehensions.
+     Until we make either of these changes, we do not pass modes to other
+     functions for typechecking comprehensions.
 
-     In order to understand the reasoning about modes for arrays, anywhere we
-     need to provide modes while typechecking comprehensions, we will reference
-     this comment by its incipit (the initial question, right at the start). *)
+     In order to understand the reasoning about modes for comprehensions,
+     anywhere we need to provide modes while typechecking comprehensions, we
+     will reference this comment by its incipit (the initial question, right at
+     the start). *)
   let new_env, comp_clauses =
     type_comprehension_clauses
       ~loc ~env ~comprehension_type ~container_type clauses
