@@ -2,7 +2,7 @@ open Lambda
 open Typedtree
 open Asttypes
 open Transl_comprehension_utils
-open Lambda_utils.Make
+open Lambda_utils.Constants
 open Lambda_utils.Primitive
 
 (** Array comprehensions are compiled by turning into a nested series of loops
@@ -271,8 +271,6 @@ module Precompute_array_size : sig
     ?variable_name:string -> loc:scoped_location -> lambda list -> lambda
 end = struct
   let raise_overflow_exn ~loc =
-    (* CR aspectorzabusky: Is this idiomatic?  Should the argument to [string]
-       (a string constant) just get [Location.none] instead? *)
     let loc' = Debuginfo.Scoped_location.to_location loc in
     let slot =
       transl_extension_path
@@ -343,7 +341,7 @@ end
 
 (** This module contains the type of bindings generated when translating array
     comprehension iterators ([Typedtree.comprehension_iterator]s).  We need more
-    struction than a [Let_binding.t list] because of the fixed-size array
+    structure than a [Let_binding.t list] because of the fixed-size array
     optimization: if we're translating an array comprehension whose size can be
     determined ahead of time, such as
     [[|x,y for x = 1 to 10 and y in some_array|]], then we need to be able to
@@ -704,8 +702,6 @@ let clauses ~transl_exp ~scopes ~loc ~array_kind = function
           (Lifthenelse(Iterator_bindings.are_any_empty ~loc var_bindings,
              (* If the array is known to be empty, we short-circuit and return
                 the empty array *)
-             (* CR aspectorzabusky: It's safe to make the array immutable
-                because it's empty, right? *)
              Lprim(
                Pmakearray(Pgenarray, Immutable, Lambda.alloc_heap),
                [],
@@ -780,9 +776,6 @@ let initial_array ~loc ~array_kind ~array_size:{array_size; array_sizing} =
         a [Variable] so that it can be overwritten when its size needs to be
         doubled. *)
   let array_let_kind, array_value =
-    (* CR aspectorzabusky: I couldn't get type-based disambiguation to work
-       without wrapping the whole match in a type annotation, which seemed
-       worse. *)
     let open Let_binding.Let_kind in
     match array_sizing, array_kind with
     (* Case 1: Float array optimization difficulties *)
@@ -880,7 +873,6 @@ let body
           | Dynamic_size ->
               Resizable_array.make ~loc Pgenarray (Lvar elt)
         in
-        (* CR aspectorzabusky: Is Pgenval safe here? *)
         Llet(Strict, Pgenval, elt, body,
              Lifthenelse(is_first_iteration,
                Lassign(array, make_array),

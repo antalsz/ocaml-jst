@@ -9,41 +9,41 @@
 (** This module handles the logic around the syntax of our extensions to OCaml
     for [ocaml-jst], keeping the gory details wrapped up behind a clean
     interface.
-    
+
     As we've started to work on syntactic extensions to OCaml, three concerns
     arose about the mechanics of how we wanted to maintain these changes in our
     fork.
-     
+
     1. We don't want to extend the AST for our fork, as we really want to make sure
        things like ppxen are cross-compatible between upstream and [ocaml-jst].
        Thankfully, OCaml already provides places to add extra syntax: extension
        points and annotations!  Thus, we have to come up with a way of representing
        our new syntactic constructs in terms of extension points (or annotations,
        but we went with the former).
-     
+
     2. We don't want to actually match on extension points whose names are specific
        strings all over the compiler; that's incredibly messy, and it's easy to miss
        cases, etc.
-       
+
     3. We want to keep different language extensions distinct so that we can add
        them to upstream independently, work on them separately, and so on.
-     
+
     We have come up with a design that addresses those concerns by providing both a
     nice compiler-level interface for working with our syntactic extensions as
     first-class AST nodes, as well as a uniform scheme for translating this to and
     from [Parsetree.expression] values containing extension points.
-     
+
     a. For each language extension, we define a module (e.g., [Comprehensions]), in
        which define a proper AST type (e.g., [Comprehensions.comprehension_expr] and
        its subcomponents).  This addresses concern (3); we've now contained each
        extension in a module.  But just that would leave them too siloed, so…
-     
+
     b. We define an *overall auxiliary AST* that's just for our language extensions,
        [extension_expr]; it contains one constructor for each of the AST types
        defined as described in design point (1).  This addresses concern (2); we can
        now match on actual OCaml constructors, as long as we can get ahold of them.
        And to do that…
-       
+
     c. We define a general scheme for how we represent language extensions in terms
        of the existing AST, and provide a few primitives for consuming/creating AST
        nodes of this form.  There's not a lot of abstraction to be done, or at least
@@ -82,7 +82,7 @@
     [[%extensions.comprehensions.for.in]], etc.)  We don't use the extension
     node payload so that ppxen can see inside these extension nodes; if we put
     the subexpressions inside the extension node payload, then we couldn't write
-    something like [[[%string "Hello, %{x}!"] for x in names]]], as [ppx_string]
+    something like [[[%string "Hello, %{x}!"] for x in names]], as [ppx_string]
     wouldn't traverse inside the payload to find the [[%string]] extension
     point.  Language extensions are of course allowed to impose constraints on
     what the contained expression is; we're also happy for this to error in
@@ -171,7 +171,8 @@ let extension_tag ~loc names =
 let extension_expr ~loc names expr =
   Ast_helper.Exp.apply ~loc (extension_tag ~loc names) [Nolabel, expr]
 
-(* CR aspectorzabusky: See the comment at the start of this file. *)
+(* Some extensions written before this file existed are handled in their own
+   way; this function filters them out. *)
 let uniformly_handled_extension names =
   match names with
   | [("local"|"global"|"nonlocal"|"escape"|"include_functor"|"curry")] -> false
@@ -257,7 +258,6 @@ module Comprehensions = struct
 
   let extension_name = Clflags.Extension.to_string Comprehensions
 
-  (* CR aspectorzabusky: new name? *)
   let comprehension_expr ~loc names =
     extension_expr ~loc (extension_name :: names)
 
@@ -335,11 +335,9 @@ module Comprehensions = struct
     match expand_comprehension_extension_expr expr with
     | ["for"; "range"; "upto"],
       { pexp_desc = Pexp_tuple [start; stop]; _ } ->
-      (* CR aspectorzabusky: Check other parts of the [pexp_desc]? *)
         Range { start; stop; direction = Upto }
     | ["for"; "range"; "downto"],
       { pexp_desc = Pexp_tuple [start; stop]; _ } ->
-      (* CR aspectorzabusky: Check other parts of the [pexp_desc]? *)
         Range { start; stop; direction = Downto }
     | ["for"; "in"], seq ->
         In seq

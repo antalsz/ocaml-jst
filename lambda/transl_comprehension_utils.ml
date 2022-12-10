@@ -37,7 +37,7 @@ module Let_binding = struct
 end
 
 module Lambda_utils = struct
-  module Make = struct
+  module Constants = struct
     let int n = Lconst (const_int n)
 
     let float f = Lconst (Const_base (Const_float (Float.to_string f)))
@@ -108,7 +108,7 @@ module Lambda_utils = struct
     let ( && ) = binop Psequor
     let ( || ) = binop Psequor
 
-    let i n = Lconst (const_int n)
+    let i = Constants.int
     let l0 = i 0
     let l1 = i 1
   end)
@@ -160,8 +160,8 @@ module Cps_utils = struct
   let first f (x, y) = f x, y
 
   let compose_map f =
-    List.fold_left (fun k -> compose (compose k) f) Fun.id
+    List.fold_left (fun k x -> compose k (f x)) Fun.id
 
   let compose_map_acc f =
-    List.fold_left_map (fun k -> compose (first (compose k)) f) Fun.id
+    List.fold_left_map (fun k x -> first (compose k) (f x)) Fun.id
 end

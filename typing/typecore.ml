@@ -3255,7 +3255,7 @@ let rec type_approx env sexp =
   | _ -> newvar ()
 
 and type_approx_extension : Extensions.extension_expr -> _ = function
-  | _ -> newvar ()
+  | Eexp_comprehension _ -> newvar ()
 
 (* Check that all univars are safe in a type. Both exp.exp_type and
    ty_expected should already be generalized. *)
@@ -3556,7 +3556,7 @@ let rec is_inferred sexp =
   | Pexp_ifthenelse (_, e1, Some e2) -> is_inferred e1 && is_inferred e2
   | _ -> false
 and is_inferred_extension : Extensions.extension_expr -> _ = function
-  | _ -> false
+  | Eexp_comprehension _ -> false
 
 (* check if the type of %apply or %revapply matches the type expected by
    the specialized typing rule for those primitives.
@@ -6262,7 +6262,7 @@ and type_let
        [Nolabel, e]) -> sexp_is_fun e
     | _ -> false
   and eexp_is_fun : Extensions.extension_expr -> _ = function
-    | _ -> false
+    | Eexp_comprehension _ -> false
   in
   let vb_is_fun { pvb_expr = sexp; _ } = sexp_is_fun sexp in
   let entirely_functions = List.for_all vb_is_fun spat_sexp_list in
@@ -6603,9 +6603,6 @@ and type_expect_extension ~loc ~env ~ty_expected
 
 and type_comprehension_expr ~loc ~env ~expected_mode:_ ~ty_expected cexpr =
   let open Extensions.Comprehensions in
-  (* CR aspectorzabusky: The first three things here are a bunch of pieces of
-     linked data that always vary together, but we need the different pieces.
-     Is there a more idiomatic approach to bundling these up? *)
   (* - [comprehension_type]:
          For printing nicer error messages.
      - [container_type]:

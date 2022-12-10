@@ -1,5 +1,8 @@
 open Lambda
 
+(** Code-generation utilities for use when generating Lambda for
+    comprehensions. *)
+
 (** First-class let bindings (mutable and immutable); we sometimes need to
     collect these while translating array comprehension clauses and bind them
     later. *)
@@ -57,8 +60,8 @@ end
 
 (** Convenience functions for working with the Lambda AST *)
 module Lambda_utils : sig
-  (** Creating AST fragments from OCaml values *)
-  module Make : sig
+  (** Creating AST fragments for constants from OCaml values *)
+  module Constants : sig
     (** Lambda integer literals *)
     val int    : int -> lambda
 
