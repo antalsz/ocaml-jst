@@ -14,7 +14,7 @@
    as well as the scheme we use, see the comment at the start of
    [extensions.ml]. *)
 
-(** The AST for list comprehensions *)
+(** The AST for list and array comprehensions *)
 module Comprehensions : sig
   type iterator =
     | Range of { start     : Parsetree.expression

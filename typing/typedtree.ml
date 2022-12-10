@@ -197,14 +197,11 @@ and comprehension_clause_binding =
     comp_cb_iterator : comprehension_iterator;
     comp_cb_attributes : attribute list
   }
-  (* We move the pattern into the [comprehension_iterator], compared to the
-     untyped syntax tree, so that range-based iterators can have just an
-     identifier instead of a full pattern *)
 
 and comprehension_iterator =
   | Texp_comp_range of
       { ident     : Ident.t
-      ; pattern   : Parsetree.pattern (* Redundant with [ident] *)
+      ; pattern   : Parsetree.pattern
       ; start     : expression
       ; stop      : expression
       ; direction : direction_flag }

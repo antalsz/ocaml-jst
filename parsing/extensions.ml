@@ -82,7 +82,7 @@
     [[%extensions.comprehensions.for.in]], etc.)  We don't use the extension
     node payload so that ppxen can see inside these extension nodes; if we put
     the subexpressions inside the extension node payload, then we couldn't write
-    something like [[[%string "Hello, %{x}!"] for x in names]]], as [ppx_string]
+    something like [[[%string "Hello, %{x}!"] for x in names]], as [ppx_string]
     wouldn't traverse inside the payload to find the [[%string]] extension
     point.  Language extensions are of course allowed to impose constraints on
     what the contained expression is; we're also happy for this to error in
@@ -171,7 +171,8 @@ let extension_tag ~loc names =
 let extension_expr ~loc names expr =
   Ast_helper.Exp.apply ~loc (extension_tag ~loc names) [Nolabel, expr]
 
-(* CR aspectorzabusky: See the comment at the start of this file. *)
+(* Some extensions written before this file existed are handled in their own
+   way; this function filters them out. *)
 let uniformly_handled_extension names =
   match names with
   | [("local"|"global"|"nonlocal"|"escape"|"include_functor"|"curry")] -> false
@@ -257,7 +258,6 @@ module Comprehensions = struct
 
   let extension_name = Clflags.Extension.to_string Comprehensions
 
-  (* CR aspectorzabusky: new name? *)
   let comprehension_expr ~loc names =
     extension_expr ~loc (extension_name :: names)
 
@@ -335,11 +335,9 @@ module Comprehensions = struct
     match expand_comprehension_extension_expr expr with
     | ["for"; "range"; "upto"],
       { pexp_desc = Pexp_tuple [start; stop]; _ } ->
-      (* CR aspectorzabusky: Check other parts of the [pexp_desc]? *)
         Range { start; stop; direction = Upto }
     | ["for"; "range"; "downto"],
       { pexp_desc = Pexp_tuple [start; stop]; _ } ->
-      (* CR aspectorzabusky: Check other parts of the [pexp_desc]? *)
         Range { start; stop; direction = Downto }
     | ["for"; "in"], seq ->
         In seq

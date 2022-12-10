@@ -2,7 +2,7 @@ open Lambda
 open Typedtree
 open Asttypes
 open Transl_comprehension_utils
-open Lambda_utils.Make
+open Lambda_utils.Constants
 
 (** List comprehensions are compiled in terms of "reversed difference lists".  A
     difference list in general is a function from lists to lists; by "reversed",
