@@ -59,8 +59,8 @@ open Lambda_utils.Primitive
     have to be able to switch between having a resizable and a fixed-size array;
     we don't need to introduce the same number of variable bindings in each
     case; etc.  Various bits of the code make these decisions (for these
-    examples: the [Iterator_bindings] module; the [initial_array] and [body]
-    functions; and the [Usage] module, all in [transl_array_comprehension.ml]).
+    examples: the [Iterator_bindings] module and the [initial_array] and [body]
+    functions, all in this file).
 
     Finally, handling the float array optimization also affects the initial
     array and the element assignment (so this ends up being a locus for all the
@@ -99,10 +99,9 @@ open Lambda_utils.Primitive
           for iter_ix = 0 to Array.length iter_arr - 1 do
             let y = iter_arr.(iter_ix) in
             (* Resize the array if necessary *)
-            begin
-              if not (!index < !array_size) then
-                array_size := 2 * !array_size;
-                array      := Array.append !array !array
+            if not (!index < !array_size) then begin
+              array_size := 2 * !array_size;
+              array      := Array.append !array !array
             end;
             (* The body: x + y *)
             !array.(!index) <- x + y;
@@ -185,73 +184,6 @@ open Lambda_utils.Primitive
     we parameterize those functions by [Translcore.transl_exp], and pass it in
     as a labeled argument, along with the necessary [scopes] labeled argument
     that it requires. *)
-
-(** Sometimes the generated code for array comprehensions reuses certain
-    expressions more than once, and sometimes it uses them exactly once. We want
-    to avoid using let bindings in the case where the expressions are used
-    exactly once, so this module lets us check statically whether the let
-    bindings have been created.
-
-    The precise context is that the endpoints of integer ranges and the lengths
-    of arrays are used once (as [for] loop endpoints) in the case where the
-    array size is not fixed and the array has to be grown dynamically; however,
-    they are used multiple times if the array size is fixed, as they are used to
-    precompute the size of the newly-allocated array.  Because, in the
-    fixed-size case, we need both the bare fact that the bindings exist as well
-    as to do computation on these bindings, we can't simply maintain a list of
-    bindings; thus, this module, allowing us to work with
-    [(Usage.once, Let_binding.t) Usage.if_reused] in the dynamic-size case and
-    [(Usage.many, Let_binding.t) Usage.if_reused] in the fixed-size case (as
-    as similar [Usage.if_reused] types wrapping other binding-representing
-    values). *)
-module Usage = struct
-  (** A two-state (boolean) type-level enum indicating whether a value is used
-      exactly [once] or can be used [many] times *)
-
-  type once = private Once [@@warning "-unused-constructor"]
-  type many = private Many [@@warning "-unused-constructor"]
-
-  (** The singleton reifying the above type-level enum, indicating whether
-      values are to be used exactly [Once] or can be reused [Many] times *)
-  type _ t =
-    | Once : once t
-    | Many : many t
-
-  (** An option-like type for storing extra data that's necessary exactly when a
-      value is to be reused [many] times *)
-  type (_, 'a) if_reused =
-    | Used_once : (once, 'a) if_reused
-    | Reusable  : 'a -> (many, 'a) if_reused
-
-  (** Wrap a value as [Reusable] iff we're in the [Many] case *)
-  let if_reused (type u) (u : u t) (x : 'a) : (u, 'a) if_reused = match u with
-    | Once -> Used_once
-    | Many -> Reusable x
-
-  (** Convert an [if_reused] to a [list], forgetting about the [once]/[many]
-      distinction; the list is empty in the [Used_once] case and a singleton in
-      the [Reusable] case. *)
-  let list_of_reused (type u) : (u, 'a) if_reused -> 'a list = function
-    | Used_once  -> []
-    | Reusable x -> [x]
-
-  (** Creates a new [Let_binding.t] only if necessary: if the value is to be
-      used (as per [usage]) [Once], then we don't need to create a binding, so
-      we just return it.  However, if the value is to be reused [Many] times,
-      then we create a binding with a fresh variable and return the variable (as
-      a lambda term).  Thus, in an environment where the returned binding is
-      used, the lambda term refers to the same value in either case. *)
-  let let_if_reused (type u) ~(usage : u t) let_kind value_kind name value
-      : lambda * (u, Let_binding.t) if_reused =
-    match usage with
-    | Once ->
-        value, Used_once
-    | Many ->
-        let var, binding =
-          Let_binding.make_var let_kind value_kind name value
-        in
-        var, Reusable binding
-end
 
 module Precompute_array_size : sig
   (** Generates the lambda expression that throws the exception once we've
@@ -345,16 +277,10 @@ end
     optimization: if we're translating an array comprehension whose size can be
     determined ahead of time, such as
     [[|x,y for x = 1 to 10 and y in some_array|]], then we need to be able to
-    precompute the sizes of the iterators, this also means that sometimes we
-    need to bind more information so that we can reuse it.  In the example
-    above, that means binding [Array.length some_array], as well as remembering
-    that the first loop iterates [to] instead of [downto].  We always need to
-    bind [some_array], as it's indexed repeatedly, and we always need to bind
-    the bounds of a [for]-[to]/[downto] iterator to get side effect ordering
-    right, so we can't simply hide this whole type behind [Usage.if_reused]; we
-    need to store some bindings all the time, and some bindings only in the
-    fixed-size case.  Thus, this module, which allows you to work with a
-    structured representation of the translated iterator bindings. *)
+    precompute the sizes of the iterators.  This means that we don't just need
+    the list of bindings, but we also need to know which bindings are which.
+    Thus, this module, which allows you to work with a structured representation
+    of the translated iterator bindings. *)
 module Iterator_bindings = struct
   (** This is the type of bindings generated when translating array
       comprehension iterators ([Typedtree.comprehension_iterator]).  If we are
@@ -365,14 +291,14 @@ module Iterator_bindings = struct
       [start] and [stop] of [to] and [downto] iterators, and the array on the
       right-hand side of an [in] iterator; this last binding is also always
       referenced multiple times.) *)
-  type 'u t =
+  type t =
     | Range of { start     : Let_binding.t (* Always bound *)
                ; stop      : Let_binding.t (* Always bound *)
-               ; direction : ('u, direction_flag) Usage.if_reused }
+               ; direction : direction_flag }
     (** The translation of [Typedtree.Texp_comp_range], an integer iterator
         ([... = ... (down)to ...]) *)
     | Array of { iter_arr : Let_binding.t (* Always bound *)
-               ; iter_len : ('u, Let_binding.t) Usage.if_reused }
+               ; iter_len : Let_binding.t }
     (** The translation of [Typedtree.Texp_comp_in], an array iterator
         ([... in ...]).  Note that we always remember the array ([iter_arr]), as
         it's indexed repeatedly no matter what. *)
@@ -382,92 +308,92 @@ module Iterator_bindings = struct
     | Range { start; stop; direction = _ } ->
         [start; stop]
     | Array { iter_arr; iter_len } ->
-        iter_arr :: Usage.list_of_reused iter_len
+        [iter_arr; iter_len]
 
   (** Get the [Let_binding.t]s out of a list of translated iterators; this is
       the information we need to translate a full [for] comprehension clause
       ([Typedtree.Texp_comp_for]). *)
   let all_let_bindings bindings = List.concat_map let_bindings bindings
 
-  (** Check if a translated iterator is empty in the fixed-size array case; that
-      is, check if this iterator will iterate over zero things. *)
-  let is_empty ~loc (t : Usage.many t) =
-    let open (val Lambda_utils.int_ops ~loc) in
-    match t with
-    | Range { start; stop; direction = Reusable direction} -> begin
-        let start = Lvar start.id in
-        let stop  = Lvar stop.id  in
-        match direction with
-        | Upto   -> start > stop
-        | Downto -> start < stop
-      end
-    | Array { iter_arr = _; iter_len = Reusable iter_len } ->
-        Lvar iter_len.id = l0
+  (** Functions for use in the fixed-size array case *)
+  module Fixed_size_array = struct
+    (** Check if a translated iterator is empty; that is, check if this iterator
+        will iterate over zero things. *)
+    let is_empty ~loc t =
+      let open (val Lambda_utils.int_ops ~loc) in
+      match t with
+      | Range { start; stop; direction} -> begin
+          let start = Lvar start.id in
+          let stop  = Lvar stop.id  in
+          match direction with
+          | Upto   -> start > stop
+          | Downto -> start < stop
+        end
+      | Array { iter_arr = _; iter_len } ->
+          Lvar iter_len.id = l0
 
-  (** Check if any of the translated iterators are empty in the fixed-size array
-      case; that is, check if any of these iterators will iterate over zero
-      things, and thus check if iterating over all of these iterators together
-      will actually iterate over zero things.  This is the information we need
-      to optimize away iterating over the values at all if the result would have
-      zero elements. *)
-  let are_any_empty ~loc ts =
-    let open (val Lambda_utils.int_ops ~loc) in
-    match List.map (is_empty ~loc) ts with
-    | is_empty :: are_empty ->
-        (* ( || ) is associative, so the fact that [List.fold_left] brackets as
-           [(((one || two) || three) || four)] shouldn't matter *)
-        List.fold_left ( || ) is_empty are_empty
-    | [] ->
-        l0 (* false *)
-        (* The empty list case can't happen with comprehensions; we could
-           raise an error here instead *)
+    (** Check if any of the translated iterators are empty; that is, check if
+        any of these iterators will iterate over zero things, and thus check if
+        iterating over all of these iterators together will actually iterate
+        over zero things.  This is the information we need to optimize away
+        iterating over the values at all if the result would have zero
+        elements. *)
+    let are_any_empty ~loc ts =
+      let open (val Lambda_utils.int_ops ~loc) in
+      match List.map (is_empty ~loc) ts with
+      | is_empty :: are_empty ->
+          (* ( || ) is associative, so the fact that [List.fold_left] brackets
+             as [(((one || two) || three) || four)] shouldn't matter *)
+          List.fold_left ( || ) is_empty are_empty
+      | [] ->
+          l0 (* false *)
+          (* The empty list case can't happen with comprehensions; we could
+             raise an error here instead *)
 
-  (** Compute the size of a single nonempty array iterator in the fixed-size
-      array case.  This is either the size of a range, which itself is either
-      [stop - start + 1] or [start - stop + 1] depending on if the array is
-      counting up ([to]) or down ([downto]), clamped to being nonnegative; or it
-      is the length of the array being iterated over.  In the range case, we
-      also have to check for overflow.  We require that the iterators be
-      nonempty, although this is only important for the range case; generate
-      Lambda code that checks the result of [are_any_empty] before entering
-      [size_nonempty] to ensure this. *)
-  let size_nonempty ~loc : Usage.many t -> lambda = function
-    | Range { start     = start
-            ; stop      = stop
-            ; direction = Reusable direction }
-      ->
-        let open (val Lambda_utils.int_ops ~loc) in
-        let start = Lvar start.id in
-        let stop  = Lvar stop.id in
-        let low, high = match direction with
-          | Upto   -> start, stop
-          | Downto -> stop,  start
-        in
-        (* We can assume that the range is nonempty, but computing its size
-           still might overflow *)
-        let range_size = Ident.create_local "range_size" in
-        Llet(Alias, Pintval, range_size, (high - low) + l1,
-          (* If the computed size of the range is positive, there was no
-             overflow; if it was zero or negative, then there was overflow *)
-          Lifthenelse(Lvar range_size > l0,
-            Lvar range_size,
-            Precompute_array_size.raise_overflow_exn ~loc,
-            Pintval))
-    | Array { iter_arr = _; iter_len = Reusable iter_len } ->
-        Lvar iter_len.id
+    (** Compute the size of a single nonempty array iterator.  This is either
+        the size of a range, which itself is either [stop - start + 1] or
+        [start - stop + 1] depending on if the array is counting up ([to]) or
+        down ([downto]), clamped to being nonnegative; or it is the length of
+        the array being iterated over.  In the range case, we also have to check
+        for overflow.  We require that the iterators be nonempty, although this
+        is only important for the range case; generate Lambda code that checks
+        the result of [are_any_empty] before entering [size_nonempty] to ensure
+        this. *)
+    let size_nonempty ~loc = function
+      | Range { start; stop; direction } ->
+          let open (val Lambda_utils.int_ops ~loc) in
+          let start = Lvar start.id in
+          let stop  = Lvar stop.id in
+          let low, high = match direction with
+            | Upto   -> start, stop
+            | Downto -> stop,  start
+          in
+          (* We can assume that the range is nonempty, but computing its size
+             still might overflow *)
+          let range_size = Ident.create_local "range_size" in
+          Llet(Alias, Pintval, range_size, (high - low) + l1,
+            (* If the computed size of the range is positive, there was no
+               overflow; if it was zero or negative, then there was overflow *)
+            Lifthenelse(Lvar range_size > l0,
+              Lvar range_size,
+              Precompute_array_size.raise_overflow_exn ~loc,
+              Pintval))
+      | Array { iter_arr = _; iter_len } ->
+          Lvar iter_len.id
 
-  (** Compute the total size of an array built out of a list of translated
-      iterators in the fixed-size array case, as long as all the iterators are
-      nonempty; since this forms a cartesian product, we take the product of the
-      sizes (see [size_nonempty]).  This can overflow, in which case we will
-      raise an exception.  This is the operation needed to precompute the fixed
-      size of a nonempty fixed-size array; check against [are_any_empty] first
-      to address the case of fixedly-empty array. *)
-  let total_size_nonempty ~loc (iterators : Usage.many t list) =
-    Precompute_array_size.safe_product_pos
-      ~variable_name:"iterator_size"
-      ~loc
-      (List.map (size_nonempty ~loc) iterators)
+    (** Compute the total size of an array built out of a list of translated
+        iterators, as long as all the iterators are nonempty; since this forms a
+        cartesian product, we take the product of the sizes (see
+        [size_nonempty]).  This can overflow, in which case we will raise an
+        exception.  This is the operation needed to precompute the fixed size of
+        a nonempty fixed-size array; check against [are_any_empty] first to
+        address the case of fixedly-empty array. *)
+    let total_size_nonempty ~loc iterators =
+      Precompute_array_size.safe_product_pos
+        ~variable_name:"iterator_size"
+        ~loc
+        (List.map (size_nonempty ~loc) iterators)
+  end
 end
 
 (** Machinery for working with resizable arrays for the results of an array
@@ -512,13 +438,10 @@ end
     variables bound over by the iterator available.
 
     This function returns both a pair of said CPSed Lambda term and the let
-    bindings generated by this term (as an [Iterator_bindings.t], which see).
-    The [~usage] argument controls whether the endpoints of the iteration have
-    to be saved; if it is [Many], then we are dealing with the fixed-size array
-    optimization, and we will generate extra bindings. *)
-let iterator ~transl_exp ~scopes ~loc ~(usage : 'u Usage.t)
-    : comprehension_iterator
-        -> (lambda -> lambda) * 'u Iterator_bindings.t = function
+    bindings generated by this term (as an [Iterator_bindings.t], which see). *)
+let iterator ~transl_exp ~scopes ~loc
+    : comprehension_iterator -> (lambda -> lambda) * Iterator_bindings.t
+    = function
   | Texp_comp_range { ident; pattern = _; start; stop; direction } ->
       let bound name value =
         Let_binding.make_var (Immutable Strict) Pintval
@@ -536,7 +459,7 @@ let iterator ~transl_exp ~scopes ~loc ~(usage : 'u Usage.t)
       in
       mk_iterator, Range { start     = start_binding
                          ; stop      = stop_binding
-                         ; direction = Usage.if_reused usage direction }
+                         ; direction }
   | Texp_comp_in { pattern; sequence = iter_arr } ->
       let iter_arr_var, iter_arr_binding =
         Let_binding.make_var (Immutable Strict) Pgenval
@@ -544,7 +467,9 @@ let iterator ~transl_exp ~scopes ~loc ~(usage : 'u Usage.t)
       in
       let iter_arr_kind = Typeopt.array_kind iter_arr in
       let iter_len, iter_len_binding =
-        Usage.let_if_reused ~usage (Immutable Alias) Pintval
+        (* Extra let-binding if we're not in the fixed-size array case; the
+           middle-end will simplify this for us *)
+        Let_binding.make_var (Immutable Alias) Pintval
           "iter_len"
           (Lprim(Parraylength iter_arr_kind, [iter_arr_var], loc))
       in
@@ -583,10 +508,9 @@ let binding
       ~transl_exp
       ~scopes
       ~loc
-      ~usage
       { comp_cb_iterator; comp_cb_attributes = _ } =
   (* CR aspectorzabusky: What do we do with attributes here? *)
-  iterator ~transl_exp ~loc ~scopes ~usage comp_cb_iterator
+  iterator ~transl_exp ~loc ~scopes comp_cb_iterator
 
 (** Translate the contents of a single [for ... and ...] clause (the contents of
     a [Typedtree.Texp_comp_for]) into Lambda, returning both the [lambda ->
@@ -594,8 +518,8 @@ let binding
     Iterator_bindings.t list] containing all the bindings generated by the
     individual iterators.  This function is factored out of [clause] because it
     is also used separately in the fixed-size case. *)
-let for_and_clause ~transl_exp ~scopes ~loc ~usage =
-  Cps_utils.compose_map_acc (binding ~transl_exp ~loc ~scopes ~usage)
+let for_and_clause ~transl_exp ~scopes ~loc =
+  Cps_utils.compose_map_acc (binding ~transl_exp ~loc ~scopes)
 
 (** Translate a single clause, either [for ... and ...] or [when ...]
     ([Typedtree.comprehension_clause]), into Lambda, returning the [lambda ->
@@ -609,7 +533,7 @@ let for_and_clause ~transl_exp ~scopes ~loc ~usage =
 let clause ~transl_exp ~scopes ~loc = function
   | Texp_comp_for bindings ->
       let make_clause, var_bindings =
-        for_and_clause ~transl_exp ~loc ~scopes ~usage:Once bindings
+        for_and_clause ~transl_exp ~loc ~scopes bindings
       in
       fun body -> Let_binding.let_all
                     (Iterator_bindings.all_let_bindings var_bindings)
@@ -690,16 +614,19 @@ type translated_clauses =
 let clauses ~transl_exp ~scopes ~loc ~array_kind = function
   | [Texp_comp_for bindings] ->
       let make_comprehension, var_bindings =
-        for_and_clause ~transl_exp ~loc ~scopes ~usage:Many bindings
+        for_and_clause ~transl_exp ~loc ~scopes bindings
       in
       let array_size, array_size_binding =
         Let_binding.make_id (Immutable Alias) Pintval
-          "array_size" (Iterator_bindings.total_size_nonempty ~loc var_bindings)
+          "array_size"
+          (Iterator_bindings.Fixed_size_array.total_size_nonempty
+             ~loc var_bindings)
       in
       let outside_context comprehension =
         Let_binding.let_all
           (Iterator_bindings.all_let_bindings var_bindings)
-          (Lifthenelse(Iterator_bindings.are_any_empty ~loc var_bindings,
+          (Lifthenelse(Iterator_bindings.Fixed_size_array.are_any_empty
+                         ~loc var_bindings,
              (* If the array is known to be empty, we short-circuit and return
                 the empty array *)
              Lprim(
