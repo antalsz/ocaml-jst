@@ -17,7 +17,7 @@ module Let_binding = struct
     let id = Ident.create_local name in
     id, {let_kind; value_kind; id; init}
 
-  let make_id' let_kind value_kind name init =
+  let make_id_binding let_kind value_kind name init =
     snd @@ make_id let_kind value_kind name init
 
   let make_id_var let_kind value_kind name init =

@@ -47,7 +47,7 @@ module Let_binding : sig
 
   (** Create a fresh local identifier to bind (from a string), and return the
       corresponding let binding. *)
-  val make_id' : Let_kind.t -> value_kind -> string -> lambda -> t
+  val make_id_binding : Let_kind.t -> value_kind -> string -> lambda -> t
 
   (** Create a Lambda let-binding (with [Llet]) from a first-class let
       binding, providing the body. *)
