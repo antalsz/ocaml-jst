@@ -134,9 +134,9 @@ type translated_iterator =
         local_ ('elt -> local_ 'res rev_dlist) ->
         local_ 'res rev_dlist
       ]}
-      Once the "iterator arguments", which vary depending on the interator, are
-      applied to this function (see       [arg_lets]), then it is simply waiting
-      for the body of the iterator (the final function argument). *)
+      Once the "iterator arguments", which vary depending on the iterator, are
+      applied to this function (see [arg_lets]), then it is simply waiting for
+      the body of the iterator (the final function argument). *)
   ; arg_lets : Let_binding.t list
   (** The first-class let bindings that bind the arguments to the [builder]
       function that actually does the iteration.  These let bindings need to be
