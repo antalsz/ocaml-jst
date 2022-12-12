@@ -1,10 +1,5 @@
 (** Supporting functions for list comprehensions *)
 
-(* CR aspectorzabusky: List comprehensions always produce global values right
-   now, but it would be great if they could produce local values, too.  (Then
-   they'd be able to/have to iterate over local lists.)  That might require some
-   form of mode polymorphism, though. *)
-
 (** Backwards snoc lists that can be spine-local but element-global.  This
     allows list comprehensions to build their intermediate data structure on the
     stack instead of the heap; since list comprehensions build their
@@ -43,3 +38,8 @@ val rev_dlist_concat_iterate_up
     [high] to [low], inclusive. *)
 val rev_dlist_concat_iterate_down
   : int -> int -> local_ (int -> local_ 'a rev_dlist) -> local_ 'a rev_dlist
+
+(** List comprehensions always produce global values right now, but it would be
+    great if they could produce local values, too.  (Then they'd be able to/have
+    to iterate over local lists.)  That requires either some form of mode
+    polymorphism or code duplication, so it isn't present yet. *)
