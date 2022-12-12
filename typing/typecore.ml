@@ -3698,7 +3698,6 @@ and type_expect_
     submode ~env ~loc:exp.exp_loc mode expected_mode;
     exp
   in
-  (* CR aspectorzabusky: How's this indentation? *)
   match Extensions.extension_expr_of_expr sexp with
   | Some eexp ->
       type_expect_extension ~loc ~env ~expected_mode ~ty_expected eexp
@@ -3730,35 +3729,35 @@ and type_expect_
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_constant(Pconst_string (str, _, _) as cst) ->
-    ignore (register_allocation expected_mode);
-    let cst = constant_or_raise env loc cst in
-    (* Terrible hack for format strings *)
-    let ty_exp = expand_head env ty_expected in
-    let fmt6_path =
-      Path.(Pdot (Pident (Ident.create_persistent "CamlinternalFormatBasics"),
-                  "format6"))
-    in
-    let is_format = match get_desc ty_exp with
-      | Tconstr(path, _, _) when Path.same path fmt6_path ->
-        if !Clflags.principal && get_level ty_exp <> generic_level then
-          Location.prerr_warning loc
-            (Warnings.Not_principal "this coercion to format6");
-        true
-      | _ -> false
-    in
-    if is_format then begin
-      let format_parsetree =
-        { (type_format loc str env) with pexp_loc = sexp.pexp_loc }  in
-      type_expect ?in_function env expected_mode
-        format_parsetree ty_expected_explained
-    end else begin
-      rue {
-        exp_desc = Texp_constant cst;
-        exp_loc = loc; exp_extra = [];
-        exp_type = instance Predef.type_string;
-        exp_attributes = sexp.pexp_attributes;
-        exp_env = env }
-    end
+      ignore (register_allocation expected_mode);
+      let cst = constant_or_raise env loc cst in
+      (* Terrible hack for format strings *)
+      let ty_exp = expand_head env ty_expected in
+      let fmt6_path =
+        Path.(Pdot (Pident (Ident.create_persistent "CamlinternalFormatBasics"),
+                    "format6"))
+      in
+      let is_format = match get_desc ty_exp with
+        | Tconstr(path, _, _) when Path.same path fmt6_path ->
+          if !Clflags.principal && get_level ty_exp <> generic_level then
+            Location.prerr_warning loc
+              (Warnings.Not_principal "this coercion to format6");
+          true
+        | _ -> false
+      in
+      if is_format then begin
+        let format_parsetree =
+          { (type_format loc str env) with pexp_loc = sexp.pexp_loc }  in
+        type_expect ?in_function env expected_mode
+          format_parsetree ty_expected_explained
+      end else begin
+        rue {
+          exp_desc = Texp_constant cst;
+          exp_loc = loc; exp_extra = [];
+          exp_type = instance Predef.type_string;
+          exp_attributes = sexp.pexp_attributes;
+          exp_env = env }
+      end
   | Pexp_constant cst ->
       let cst = constant_or_raise env loc cst in
       rue {
