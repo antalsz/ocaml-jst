@@ -70,6 +70,38 @@ val expr_of_extension_expr :
     language extension; if it is, then return it if said language extension is
     enabled or raise an error otherwise.  Also raises an error if this AST node
     looks like a lowered language extension but is from an unknown extension or
-    is otherwise malformed. *)
+    is otherwise malformed.
+
+    AN IMPORTANT NOTE: We indent calls to this function *very* strangely: we *do
+    not change the indentation level* when we match on its result!  E.g. from
+    [type_expect_] in [typecore.ml]:
+
+    {[
+      match Extensions.extension_expr_of_expr sexp with
+      | Some eexp ->
+          type_expect_extension ~loc ~env ~expected_mode ~ty_expected eexp
+      | None      -> match sexp.pexp_desc with
+      | Pexp_ident lid ->
+          let path, mode, desc, kind = type_ident env ~recarg lid in
+          (* ... *)
+      | Pexp_constant(Pconst_string (str, _, _) as cst) ->
+          register_allocation expected_mode;
+          (* ... *)
+      | (* ... *)
+      | Pexp_unreachable ->
+          re { exp_desc = Texp_unreachable;
+               exp_loc = loc; exp_extra = [];
+               exp_type = instance ty_expected;
+               exp_mode = expected_mode.mode;
+               exp_attributes = sexp.pexp_attributes;
+               exp_env = env }
+    ]}
+
+    Note that we match on the result of this function, forward to
+    [type_expect_extension] if we get something, and otherwise do the real match
+    on [sexp.pexp_desc] *without going up an indentation level*.  This is
+    important to reduce the number of merge conflicts with upstream by avoiding
+    changing the body of every single important function in the type checker to
+    add pointless indentation. *)
 val extension_expr_of_expr :
   Parsetree.expression -> extension_expr option
