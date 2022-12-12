@@ -314,22 +314,52 @@ module Comprehensions = struct
     | Cexp_list_comprehension  comp -> expr_of_comprehension_type "list"  comp
     | Cexp_array_comprehension comp -> expr_of_comprehension_type "array" comp
 
+  module Desugaring_error = struct
+    type error =
+      | Non_comprehension_extension_point of string list
+      | Non_extension
+      | Bad_comprehension_extension_point of string list
+      | No_clauses
+
+    let report_error ~loc = function
+      | Non_comprehension_extension_point name ->
+          Location.errorf ~loc
+            "Tried to desugar the non-comprehension extension point \
+             \"extension.%s\" as part of a comprehension expression"
+            (String.concat "." name)
+      | Non_extension ->
+          Location.errorf ~loc
+            "Tried to desugar a non-extension expression as part of a \
+             comprehension expression"
+      | Bad_comprehension_extension_point name ->
+          Location.errorf ~loc
+            "Unknown, unexpected, or malformed comprehension extension point \
+             \"extension.comprehension.%s\""
+            (String.concat "." name)
+      | No_clauses ->
+          Location.errorf ~loc
+            "Tried to desugar a comprehension with no clauses"
+
+    exception Error of Location.t * error
+
+    let () =
+      Location.register_error_of_exn
+        (function
+          | Error(loc, err) -> Some (report_error ~loc err)
+          | _ -> None)
+
+    let raise expr err = raise (Error(expr.pexp_loc, err))
+  end
+
   let expand_comprehension_extension_expr expr =
     match expand_extension_expr expr with
     | Some (comprehensions :: name, expr)
       when String.equal comprehensions extension_name ->
         name, expr
     | Some (name, _) ->
-        failwith ("Tried to desugar the non-comprehension extension point \
-                   \"extension." ^ String.concat "." name ^ "\" as part of a \
-                   comprehension expression")
+        Desugaring_error.raise expr (Non_comprehension_extension_point name)
     | None ->
-        failwith "Tried to desugar a non-extension expression as part of a \
-                  comprehension expression"
-
-  let expand_comprehension_extension_expr_failure name =
-    failwith ("Unknown, unexpected, or malformed comprehension extension point \
-               \"extension.comprehension." ^ String.concat "." name ^ "\"")
+        Desugaring_error.raise expr Non_extension
 
   let iterator_of_expr expr =
     match expand_comprehension_extension_expr expr with
@@ -342,7 +372,7 @@ module Comprehensions = struct
     | ["for"; "in"], seq ->
         In seq
     | bad, _ ->
-        expand_comprehension_extension_expr_failure bad
+        Desugaring_error.raise expr (Bad_comprehension_extension_point bad)
 
   let clause_binding_of_vb { pvb_pat; pvb_expr; pvb_attributes; pvb_loc = _ } =
     { pattern = pvb_pat
@@ -364,12 +394,12 @@ module Comprehensions = struct
     | ["body"], body ->
         { body; clauses = [] }
     | bad, _ ->
-        expand_comprehension_extension_expr_failure bad
+        Desugaring_error.raise expr (Bad_comprehension_extension_point bad)
 
   let comprehension_of_expr expr =
     match raw_comprehension_of_expr expr with
     | { body = _; clauses = [] } ->
-        failwith "Tried to desugar a comprehension with no clauses"
+        Desugaring_error.raise expr No_clauses
     | comp -> comp
 
   let comprehension_expr_of_expr expr =
@@ -379,7 +409,7 @@ module Comprehensions = struct
     | ["array"], comp ->
         Cexp_array_comprehension (comprehension_of_expr comp)
     | bad, _ ->
-        expand_comprehension_extension_expr_failure bad
+        Desugaring_error.raise expr (Bad_comprehension_extension_point bad)
 end
 
 type extension_expr =
