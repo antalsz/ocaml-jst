@@ -6600,6 +6600,81 @@ and type_expect_extension ~loc ~env ~ty_expected
   | Eexp_comprehension cexpr ->
       type_comprehension_expr ~loc ~env ~ty_expected cexpr
 
+(* What modes should comprehensions use?  Let us be generic over the sequence
+   type we use for comprehensions, calling it [sequence] (standing for either
+   [list] or [array]) and writing [[? ... ?]].  If we ignore modes, we may
+   consider a comprehension as having been typechecked per the following
+   modeless rule:
+
+   {[
+     G |- a type
+     G |- b type
+     G |- seq : a sequence
+     G |- low : int
+     G |- high : int
+     G, x : a, i : int |- cond : bool
+     G, x : a, i : int |- body : b
+     -----------------------------------------------------------------------
+     G |- [? body for x in seq and i = low to high when cond ?] : b sequence
+   ]}
+
+   To reason about modes, we have to separately consider the modes of [body],
+   [x], [seq], [i], [low], [high], [cond], and the entire comprehension.
+
+   - The modes of [i], [low], [high], and [cond] are simple: We may be
+     *polymorphic* in each of them individually.  As [int] and [bool] are
+     immediates, values of these types may freely be used at any mode.  We thus
+     don't need to consider these modes any further.
+
+   - The modes of [x] and [seq] must be *the same as each other*, as we do not
+     distinguish between the "spine mode" and the "value mode" for types; a list
+     or array must be as local or as global as its elements are.  (If these were
+     separate concepts, we could unconditionally allocate a list or array
+     "spine-locally", and handle [x]'s mode separately.)  We'll refer to this as
+     the "input mode" below.
+
+   - By the same token, the modes of [body] and the entire comprehension must be
+     *the same as each other*, as we are generating a sequence made up of the
+     result of evaluating [body] repeatedly.  We'll refer to this as the "output
+     mode" below.
+
+   - The input mode must be *below* the output mode.  Clearly, the two can be
+     the same as each other; and if the input is local, then the output surely
+     cannot be global, as it can refer to the input and we cannot have heap
+     pointers pointing into the stack.  However, if the input is global, then it
+     is perfectly safe for a local sequence to contain references to it, and so
+     there is no harm in allowing the output to be local.
+
+   Thus, the question turns on what mode we are to use for the output, the mode
+   of [body] and the entire comprehension.  While it would be nice to be
+   polymorphic here, *we are unfortunately currently constrained to check
+   comprehensions at global mode*.  This is not a fundamental limitation, and
+   would just require updating the translation code to be layout-aware as it
+   happens after inference.  The changes this would require for list and array
+   comprehensions are different:
+
+   - For list comprehensions: List comprehensions are desugared in terms of
+     functions and types from [CamlinternalComprehension]; as part of regular
+     OCaml, they cannot cannot have the desired (or any) mode polymorphism.
+     However, as there are only two modes, we could duplicate the module to
+     contain two nearly-identical copies of the code: one that operates on the
+     current spine-local but element-global intermediate type and constructs a
+     global list at th end; and the other that operates on a very similar spine-
+     *and* element-local intermediate type and constructs a local list at the
+     end.
+
+   - For array comprehensions: We currently only have global arrays, and do not
+     currently allow there to be such a thing as a local array at all.  If this
+     changed, we could add mode-directed support for allocating the resulting
+     array apropriately.
+
+   Until we make either of these changes, we do not pass modes to other
+   functions for typechecking comprehensions.
+
+   In order to understand the reasoning about modes for comprehensions, anywhere
+   we need to provide modes while typechecking comprehensions, we will reference
+   this comment by its incipit (the initial question, right at the start). *)
+
 and type_comprehension_expr ~loc ~env ~expected_mode:_ ~ty_expected cexpr =
   let open Extensions.Comprehensions in
   (* - [comprehension_type]:
@@ -6641,82 +6716,9 @@ and type_comprehension_expr ~loc ~env ~expected_mode:_ ~ty_expected cexpr =
     end_def();
     generalize_structure element_ty;
   end;
-  (* What modes should comprehensions use?  Let us be generic over the sequence
-     type we use for comprehensions, calling it [sequence] (standing for either
-     [list] or [array]) and writing [[? ... ?]].  If we ignore modes, we may
-     consider a comprehension as having been typechecked per the following
-     modeless rule:
-
-     {[
-       G |- a type
-       G |- b type
-       G |- seq : a sequence
-       G |- low : int
-       G |- high : int
-       G, x : a, i : int |- cond : bool
-       G, x : a, i : int |- body : b
-       -----------------------------------------------------------------------
-       G |- [? body for x in seq and i = low to high when cond ?] : b sequence
-     ]}
-
-     To reason about modes, we have to separately consider the modes of [body],
-     [x], [seq], [i], [low], [high], [cond], and the entire comprehension.
-
-     - The modes of [i], [low], [high], and [cond] are simple: We may be
-       *polymorphic* in each of them individually.  As [int] and [bool] are
-       immediates, values of these types may freely be used at any mode.  We
-       thus don't need to consider these modes any further.
-
-     - The modes of [x] and [seq] must be *the same as each other*, as we do not
-       distinguish between the "spine mode" and the "value mode" for types; a
-       list or array must be as local or as global as its elements are.  (If
-       these were separate concepts, we could unconditionally a list or array
-       "spine-locally", and handle [x]'s mode separately.)  We'll refer to this
-       as the "input mode" below.
-
-     - By the same token, the modes of [body] and the entire comprehension must
-       be *the same as each other*, as we are generating a sequence made up of
-       the result of evaluating [body] repeatedly.  We'll refer to this as the
-       "output mode" below.
-
-     - The input mode must be *below* the output mode.  Clearly, the two can be
-       the same as each other; and if the input is local, then the output surely
-       cannot be global, as it can refer to the input and we cannot have heap
-       pointers pointing into the stack.  However, if the input is global, then
-       it is perfectly safe for a local sequence to contain references to it,
-       and so there is no harm in allowing the output to be local.
-
-     Thus, the question turns on what mode we are to use for the output, the
-     mode of [body] and the entire comprehension.  While it would be nice to be
-     polymorphic here, *we are unfortunately currently constrained to check
-     comprehensions at global mode*.  This is not a fundamental limitation, and
-     would just require updating the translation code to be layout-aware as it
-     happens after inference.  The changes this would require for list and array
-     comprehensions are different:
-
-     - For list comprehensions: List comprehensions are desugared in terms of
-       functions and types from [CamlinternalComprehension]; as part of regular
-       OCaml, they cannot cannot have the desired (or any) mode polymorphism.
-       However, as there are only two modes, we could duplicate the module to
-       contain two nearly-identical copies of the code: one that operates on the
-       current spine-local but element-global intermediate type and constructs a
-       global list at th end; and the other that operates on a very similar
-       spine- *and* element-local intermediate type and constructs a local list
-       at the end.
-
-     - For array comprehensions: We currently only have global arrays, and do
-       not currently allow there to be such a thing as a local array at all.  If
-       this changed, we could add mode-directed support for allocating the
-       resulting array apropriately.
-
-     Until we make either of these changes, we do not pass modes to other
-     functions for typechecking comprehensions.
-
-     In order to understand the reasoning about modes for comprehensions,
-     anywhere we need to provide modes while typechecking comprehensions, we
-     will reference this comment by its incipit (the initial question, right at
-     the start). *)
   let new_env, comp_clauses =
+    (* To understand why we don't provide modes here, see "What modes should
+       comprehensions use?", above *)
     type_comprehension_clauses
       ~loc ~env ~comprehension_type ~container_type clauses
   in
