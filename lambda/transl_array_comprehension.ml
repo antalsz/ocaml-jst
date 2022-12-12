@@ -725,7 +725,7 @@ let initial_array ~loc ~array_kind ~array_size:{array_size; array_sizing} =
 
 (** Generate the code for the body of an array comprehension.  This involves
     translating the body expression (a [Typedtree.expression], which is the
-    [comp_body] field of [Typedtree.comprehension), but also handles the logic
+    [comp_body] field of [Typedtree.comprehension], but also handles the logic
     of filling in the array that is being produced by the comprehension.  This
     logic varies depending on whether we are subject to the float array
     optimization or not and whether we are in the fixed size array case or not,
