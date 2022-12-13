@@ -400,7 +400,10 @@ end
     comprehension: they are created at a fixed, known, small size, and are
     doubled in size when necessary.  These are the arrays that back array
     comprehensions by default, but not in the fixed-size case; in that case, we
-    simply construct an array of the appropriate size directly. *)
+    simply construct an array of the appropriate size directly.  We could have
+    built something like this as an OCaml module instead, but doing it directly
+    in Lambda was simpler, particularly around the ability to alternate freely
+    with the fixed-size case. *)
 module Resizable_array = struct
   (** The starting size of a resizable array.  This is guaranteed to be a small
       power of two.  Because we resize the array by doubling, using a power of
