@@ -8,7 +8,7 @@ open Debuginfo.Scoped_location
     body of a [Typedtree.Texp_list_comprehension]) into Lambda.
 
     The only variables and types this term directly refers to are those from
-    [CamlinternalComprehension] and those that come from the array comprehension
+    [CamlinternalComprehension] and those that come from the list comprehension
     itself.
 
     This function needs to translate expressions from Typedtree into Lambda, and
