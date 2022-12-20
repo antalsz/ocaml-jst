@@ -230,13 +230,13 @@ module Comprehensions = struct
         (** "= START to STOP" (direction = Upto)
             "= START downto STOP" (direction = Downto) *)
     | In of expression
-      (** "in EXPR" *)
+       (** "in EXPR" *)
 
   type clause_binding =
     { pattern    : pattern
     ; iterator   : iterator
     ; attributes : attribute list }
-    (** PAT (in/= ...) [@...] *)
+      (** PAT (in/= ...) [@...] *)
 
   type clause =
     | For of clause_binding list
