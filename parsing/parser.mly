@@ -2503,7 +2503,7 @@ comprehension_clause:
     { Extensions.Comprehensions.{ body = $2; clauses = $3 } }
 ;
 
-%inline comprehension_eexpr:
+%inline comprehension_ext_expr:
   | comprehension(LBRACKET,RBRACKET)
       { Extensions.Comprehensions.Cexp_list_comprehension  $1 }
   | comprehension(LBRACKETBAR,BARRBRACKET)
@@ -2511,7 +2511,7 @@ comprehension_clause:
 ;
 
 %inline comprehension_expr:
-  comprehension_eexpr
+  comprehension_ext_expr
     { (Extensions.expr_of_extension_expr
          ~loc:(make_loc $sloc)
          Comprehensions

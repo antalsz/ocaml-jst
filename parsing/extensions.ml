@@ -302,8 +302,8 @@ module Comprehensions = struct
       pattern
       (expr_of_iterator ~loc iterator)
 
-  let expr_of_clause ~loc = function
-    | For iterators -> fun rest ->
+  let expr_of_clause ~loc clause rest = match clause with
+    | For iterators ->
         comprehension_expr
           ~loc
           ["for"]
@@ -311,7 +311,7 @@ module Comprehensions = struct
              Nonrecursive
              (List.map (expr_of_clause_binding ~loc) iterators)
              rest)
-    | When cond -> fun rest ->
+    | When cond ->
         comprehension_expr
           ~loc
           ["when"]
