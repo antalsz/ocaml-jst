@@ -256,6 +256,27 @@ module Comprehensions = struct
     | Cexp_array_comprehension of comprehension
         (** [|BODY ...CLAUSES...|] *)
 
+  (* The desugared-to-OCaml version of comprehensions is described by the
+     following BNF.  We specify the result of [extension_expr] as
+     [{% name1 name2 ... nameN | expr %}].
+
+     {v
+         comprehension ::=
+           | {% comprehension list | '[' clauses ']' %}
+           | {% comprehension array | '[|' clauses '|]' %}
+
+         clauses ::=
+           | {% comprehension for | 'let' iterator+ 'in' clauses %}
+           | {% comprehension when | expr ';' clauses %}
+           | {% comprehension body | expr %}
+
+         iterator ::=
+           | pattern '=' {% comprehension for range upto | expr ',' expr %}
+           | pattern '=' {% comprehension for range downto | expr ',' expr %}
+           | pattern '=' {% comprehension for in | expr %}
+     v}
+  *)
+
   let extension_name = Clflags.Extension.to_string Comprehensions
 
   let comprehension_expr ~loc names =
