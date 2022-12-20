@@ -1204,7 +1204,6 @@ let type_for_loop_like_index ~error ~loc ~env ~param =
                        local because it's the bottom of the lattice and can
                        submode up freely *)
                 ; pv_type       = instance Predef.type_int
-                    (* CR aspectorzabusky: Do we need [instance] here? *)
                 ; pv_loc        = loc
                 ; pv_as_var     = false
                 ; pv_attributes = [] }
