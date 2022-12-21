@@ -256,24 +256,28 @@ module Comprehensions = struct
     | Cexp_array_comprehension of comprehension
         (** [|BODY ...CLAUSES...|] *)
 
+  (* CR aspectorzabusky: Move the general description of how these BNF grammars
+     work to the general modular extensions machinery, and then refer back to
+     it. *)
+  (* CR aspectorzabusky: Elaborate on the second intro sentence, like, a lot. *)
   (* The desugared-to-OCaml version of comprehensions is described by the
-     following BNF.  We specify the result of [extension_expr] as
-     [{% name1 name2 ... nameN | expr %}].
+     following BNF.  We specify the result of [extension_expr ~loc [name1;
+     name2; ...; NameN] expr] as [{% 'name1.name2.....nameN' | expr %}].
 
      {v
          comprehension ::=
-           | {% comprehension list | '[' clauses ']' %}
-           | {% comprehension array | '[|' clauses '|]' %}
+           | {% 'comprehension.list' | '[' clauses ']' %}
+           | {% 'comprehension.array' | '[|' clauses '|]' %}
 
          clauses ::=
-           | {% comprehension for | 'let' iterator+ 'in' clauses %}
-           | {% comprehension when | expr ';' clauses %}
-           | {% comprehension body | expr %}
+           | {% 'comprehension.for' | 'let' iterator+ 'in' clauses %}
+           | {% 'comprehension.when' | expr ';' clauses %}
+           | {% 'comprehension.body' | expr %}
 
          iterator ::=
-           | pattern '=' {% comprehension for range upto | expr ',' expr %}
-           | pattern '=' {% comprehension for range downto | expr ',' expr %}
-           | pattern '=' {% comprehension for in | expr %}
+           | pattern '=' {% 'comprehension.for.range.upto' | expr ',' expr %}
+           | pattern '=' {% 'comprehension.for.range.downto' | expr ',' expr %}
+           | pattern '=' {% 'comprehension.for.in' | expr %}
      v}
   *)
 
