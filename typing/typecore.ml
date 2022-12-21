@@ -1189,8 +1189,8 @@ let split_cases env cases =
 
 (* Returns a pair of the identifier for this index and, optionally, the
    corresponding pattern variable; we can omit the pattern variable, and thus
-   never add the identifier to the environment, if we are synthesizing a dummy
-   name for an [_] ([Ppat_any]). *)
+   the caller can skip adding the identifier to the environment, if that
+   identifier was synthesized as a dummy name for an [_] ([Ppat_any]). *)
 let type_for_loop_like_index ~error ~loc ~env ~param =
   match param.ppat_desc with
   | Ppat_any -> Ident.create_local "_for", None
