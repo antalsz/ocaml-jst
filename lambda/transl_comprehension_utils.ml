@@ -45,18 +45,20 @@ module Lambda_utils = struct
     let string ~loc s = Lconst (Const_base (Const_string(s, loc, None)))
   end
 
-  (* CR aspectorzabusky: I think [alloc_heap] is the right default for
-     [ap_mode], but I don't understand what [ap_mode] means. *)
   let apply
-        ?(region_close = Rc_normal)
-        ?(mode         = alloc_heap)
-        ?(tailcall     = Default_tailcall)
-        ?(inlined      = Default_inlined)
-        ?(specialised  = Default_specialise)
-        ?probe
         ~loc
         func
         args =
+    (* These defaultscould be promoted to optional arguments if they were more
+       widely used *)
+    let region_close = Rc_normal in
+    (* CR aspectorzabusky: I think [alloc_heap] is the right default for
+       [ap_mode], but I don't understand what [ap_mode] means. *)
+    let mode         = alloc_heap in
+    let tailcall     = Default_tailcall in
+    let inlined      = Default_inlined in
+    let specialised  = Default_specialise in
+    let probe = None in
     Lapply { ap_loc          = loc
            ; ap_func         = func
            ; ap_args         = args
