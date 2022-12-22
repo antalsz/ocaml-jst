@@ -111,8 +111,8 @@ open Lambda_utils.Primitive
       (* Cut the array back down to size *)
       Array.sub !array 0 !index
     ]}
-    On the other hand, consider this array comprehension, which is subject to the
-    fixed-size array comprehension optimization:
+    On the other hand, consider this array comprehension, which is subject to
+    the fixed-size array comprehension optimization:
     {[
       [|x*y for x = 1 to 3 and y = 10 downto 8|]
       (* = [|10; 9; 8; 20; 18; 16; 30; 27; 24|] *)
@@ -134,8 +134,9 @@ open Lambda_utils.Primitive
       else
         (* Precompute the array size *)
         let array_size =
-          (* Compute the size of the range [1 to 3], failing on overflow (the case
-             where the range is correctly size 0 is handled by the emptiness check) *)
+          (* Compute the size of the range [1 to 3], failing on overflow (the
+             case where the range is correctly size 0 is handled by the
+             emptiness check) *)
           let x_size =
             let range_size = (stop_x - start_x) + 1 in
             if range_size > 0
@@ -143,9 +144,9 @@ open Lambda_utils.Primitive
             else raise (Invalid_argument "integer overflow when precomputing \
                                           the size of an array comprehension")
           in
-          (* Compute the size of the range [10 downto 8], failing on overflow (the
-             case where the range is correctly size 0 is handled by the emptiness
-             check) *)
+          (* Compute the size of the range [10 downto 8], failing on overflow
+             (the case where the range is correctly size 0 is handled by the
+             emptiness check) *)
           let y_size =
             let range_size = (start_y - stop_y) + 1 in
             if range_size > 0
@@ -153,8 +154,8 @@ open Lambda_utils.Primitive
             else raise (Invalid_argument "integer overflow when precomputing \
                                           the size of an array comprehension")
           in
-          (* Multiplication that checks for overflow ([y_size] can't be [0] because we
-             checked that above *)
+          (* Multiplication that checks for overflow ([y_size] can't be [0]
+             because we checked that above *)
           let product = x_size * y_size in
           if product / y_size = x_size
           then product
