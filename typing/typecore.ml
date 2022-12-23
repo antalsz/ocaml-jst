@@ -7106,8 +7106,7 @@ let report_pattern_type_clash_hints
   | _ -> []
 
 let report_type_expected_explanation expl ppf =
-  let because1 expl_fmt = fprintf ppf "@ because it is in %(%s%)" expl_fmt in
-  let because = because1 "%s" in
+  let because expl_str = fprintf ppf "@ because it is in %s" expl_str in
   match expl with
   | If_conditional ->
       because "the condition of an if-statement"
@@ -7130,10 +7129,12 @@ let report_type_expected_explanation expl ppf =
   | When_guard ->
       because "a when-guard"
   | Comprehension_in_iterator comp_ty ->
-      because1 "a for-in iterator in %s comprehension"
-        (match comp_ty with
-         | List_comprehension  -> "a list"
-         | Array_comprehension -> "an array")
+      let a_comp_ty =
+        match comp_ty with
+        | List_comprehension  -> "a list"
+        | Array_comprehension -> "an array"
+      in
+      because ("a for-in iterator in " ^ a_comp_ty ^ " comprehension")
   | Comprehension_for_start ->
       because "a range-based for iterator start index in a comprehension"
   | Comprehension_for_stop ->
