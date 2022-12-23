@@ -236,23 +236,23 @@ let expr sub {exp_extra; exp_desc; exp_env; _} =
   | Texp_array list -> List.iter (sub.expr sub) list
   | Texp_list_comprehension { comp_body; comp_clauses }
   | Texp_array_comprehension { comp_body; comp_clauses } ->
-    sub.expr sub comp_body;
-    List.iter
-      (function
-        | Texp_comp_for bindings ->
-            List.iter
-              (fun { comp_cb_iterator; comp_cb_attributes = _ } ->
-                 match comp_cb_iterator with
-                 | Texp_comp_range { ident = _; start; stop; direction = _ } ->
-                     sub.expr sub start;
-                     sub.expr sub stop
-                 | Texp_comp_in { pattern; sequence } ->
-                     sub.pat sub pattern;
-                     sub.expr sub sequence)
-              bindings
-        | Texp_comp_when exp ->
-          sub.expr sub exp)
-      comp_clauses
+      sub.expr sub comp_body;
+      List.iter
+        (function
+          | Texp_comp_for bindings ->
+              List.iter
+                (fun { comp_cb_iterator; comp_cb_attributes = _ } ->
+                   match comp_cb_iterator with
+                   | Texp_comp_range { ident = _; start; stop; direction = _ } ->
+                       sub.expr sub start;
+                       sub.expr sub stop
+                   | Texp_comp_in { pattern; sequence } ->
+                       sub.pat sub pattern;
+                       sub.expr sub sequence)
+                bindings
+          | Texp_comp_when exp ->
+            sub.expr sub exp)
+        comp_clauses
   | Texp_ifthenelse (exp1, exp2, expo) ->
       sub.expr sub exp1;
       sub.expr sub exp2;
