@@ -166,7 +166,7 @@ type translated_iterator =
 let iterator ~transl_exp ~scopes = function
   | Texp_comp_range { ident; pattern = _; start; stop; direction } ->
       (* We have to let-bind [start] and [stop] so that they're evaluated in the
-         right (i.e., left-to-right) order *)
+         correct (i.e., left-to-right) order *)
       let transl_bound var bound =
         Let_binding.make_id_binding
           (Immutable Strict) Pintval
