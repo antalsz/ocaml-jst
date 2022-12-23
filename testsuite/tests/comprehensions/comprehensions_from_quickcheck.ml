@@ -175,14 +175,14 @@ Warning 26 [unused-var]: unused variable r.
    when i < 0
    for k in []];;
 [%%expect{|
-Line 2, characters 45-46:
-2 |    for i in [2; 2; -2; 1; 2] and r in [] and k in [-1]
-                                                 ^
-Warning 26 [unused-var]: unused variable k.
 Line 2, characters 7-8:
 2 |    for i in [2; 2; -2; 1; 2] and r in [] and k in [-1]
            ^
 Warning 26 [unused-var]: unused variable i.
+Line 2, characters 45-46:
+2 |    for i in [2; 2; -2; 1; 2] and r in [] and k in [-1]
+                                                 ^
+Warning 26 [unused-var]: unused variable k.
 - : (int * 'a * int * int) list = []
 |}];;
 
@@ -192,14 +192,14 @@ Warning 26 [unused-var]: unused variable i.
     when i < 0
     for k in [||]|];;
 [%%expect{|
-Line 2, characters 50-51:
-2 |     for i in [|2; 2; -2; 1; 2|] and r in [||] and k in [|-1|]
-                                                      ^
-Warning 26 [unused-var]: unused variable k.
 Line 2, characters 8-9:
 2 |     for i in [|2; 2; -2; 1; 2|] and r in [||] and k in [|-1|]
             ^
 Warning 26 [unused-var]: unused variable i.
+Line 2, characters 50-51:
+2 |     for i in [|2; 2; -2; 1; 2|] and r in [||] and k in [|-1|]
+                                                      ^
+Warning 26 [unused-var]: unused variable k.
 - : (int * '_weak2 * int * int) array = [||]
 |}];;
 
@@ -5026,10 +5026,6 @@ Warning 26 [unused-var]: unused variable r.
    for d in [2; -3; 0; -3; 0; 3; -2] and x in [0; -1; -2; 3; 1; 3]
    for w = 0 to 1];;
 [%%expect{|
-Line 2, characters 23-24:
-2 |    for d = -2 to 1 and l in [2; -3; 0; -3; 0; 0; 1]
-                           ^
-Warning 26 [unused-var]: unused variable l.
 Lines 1-6, characters 0-18:
 1 | [(d, e, l, u, w, x)
 2 |    for d = -2 to 1 and l in [2; -3; 0; -3; 0; 0; 1]
@@ -5038,6 +5034,10 @@ Lines 1-6, characters 0-18:
 5 |    for d in [2; -3; 0; -3; 0; 3; -2] and x in [0; -1; -2; 3; 1; 3]
 6 |    for w = 0 to 1]..
 Warning 26 [unused-var]: unused variable d.
+Line 2, characters 23-24:
+2 |    for d = -2 to 1 and l in [2; -3; 0; -3; 0; 0; 1]
+                           ^
+Warning 26 [unused-var]: unused variable l.
 Line 4, characters 19-20:
 4 |    for u in [] and x in [3; 0; -1; 0; 2; -3]
                        ^
@@ -5052,10 +5052,6 @@ Warning 26 [unused-var]: unused variable x.
     for d in [|2; -3; 0; -3; 0; 3; -2|] and x in [|0; -1; -2; 3; 1; 3|]
     for w = 0 to 1|];;
 [%%expect{|
-Line 2, characters 24-25:
-2 |     for d = -2 to 1 and l in [|2; -3; 0; -3; 0; 0; 1|]
-                            ^
-Warning 26 [unused-var]: unused variable l.
 Lines 1-6, characters 0-20:
 1 | [|(d, e, l, u, w, x)
 2 |     for d = -2 to 1 and l in [|2; -3; 0; -3; 0; 0; 1|]
@@ -5064,6 +5060,10 @@ Lines 1-6, characters 0-20:
 5 |     for d in [|2; -3; 0; -3; 0; 3; -2|] and x in [|0; -1; -2; 3; 1; 3|]
 6 |     for w = 0 to 1|]..
 Warning 26 [unused-var]: unused variable d.
+Line 2, characters 24-25:
+2 |     for d = -2 to 1 and l in [|2; -3; 0; -3; 0; 0; 1|]
+                            ^
+Warning 26 [unused-var]: unused variable l.
 Line 4, characters 22-23:
 4 |     for u in [||] and x in [|3; 0; -1; 0; 2; -3|]
                           ^
@@ -6707,14 +6707,14 @@ Warning 26 [unused-var]: unused variable a.
    for z in [2] and j in [] and k in [3; 1; -2]
    for k in [] and z in [3; 2; 0; 0; -2] and n = -1 to 3];;
 [%%expect{|
-Line 4, characters 32-33:
-4 |    for z in [2] and j in [] and k in [3; 1; -2]
-                                    ^
-Warning 26 [unused-var]: unused variable k.
 Line 4, characters 7-8:
 4 |    for z in [2] and j in [] and k in [3; 1; -2]
            ^
 Warning 26 [unused-var]: unused variable z.
+Line 4, characters 32-33:
+4 |    for z in [2] and j in [] and k in [3; 1; -2]
+                                    ^
+Warning 26 [unused-var]: unused variable k.
 - : (int * int * 'a * 'b * int * int * int * int) list = []
 |}];;
 
@@ -6724,14 +6724,14 @@ Warning 26 [unused-var]: unused variable z.
     for z in [|2|] and j in [||] and k in [|3; 1; -2|]
     for k in [||] and z in [|3; 2; 0; 0; -2|] and n = -1 to 3|];;
 [%%expect{|
-Line 4, characters 37-38:
-4 |     for z in [|2|] and j in [||] and k in [|3; 1; -2|]
-                                         ^
-Warning 26 [unused-var]: unused variable k.
 Line 4, characters 8-9:
 4 |     for z in [|2|] and j in [||] and k in [|3; 1; -2|]
             ^
 Warning 26 [unused-var]: unused variable z.
+Line 4, characters 37-38:
+4 |     for z in [|2|] and j in [||] and k in [|3; 1; -2|]
+                                         ^
+Warning 26 [unused-var]: unused variable k.
 - : (int * int * '_weak58 * '_weak59 * int * int * int * int) array = [||]
 |}];;
 
@@ -7014,14 +7014,14 @@ Warning 26 [unused-var]: unused variable m.
    for p = 1 to 3 and n in [-3; -1; 3; 3]
    for m in []];;
 [%%expect{|
-Line 3, characters 20-21:
-3 |    for m in [2] and n in [z; -3; 0; 1; 3]
-                        ^
-Warning 26 [unused-var]: unused variable n.
 Line 3, characters 7-8:
 3 |    for m in [2] and n in [z; -3; 0; 1; 3]
            ^
 Warning 26 [unused-var]: unused variable m.
+Line 3, characters 20-21:
+3 |    for m in [2] and n in [z; -3; 0; 1; 3]
+                        ^
+Warning 26 [unused-var]: unused variable n.
 - : (int * 'a * int * int * int * int * int) list = []
 |}];;
 
@@ -7032,14 +7032,14 @@ Warning 26 [unused-var]: unused variable m.
     for p = 1 to 3 and n in [|-3; -1; 3; 3|]
     for m in [||]|];;
 [%%expect{|
-Line 3, characters 23-24:
-3 |     for m in [|2|] and n in [|z; -3; 0; 1; 3|]
-                           ^
-Warning 26 [unused-var]: unused variable n.
 Line 3, characters 8-9:
 3 |     for m in [|2|] and n in [|z; -3; 0; 1; 3|]
             ^
 Warning 26 [unused-var]: unused variable m.
+Line 3, characters 23-24:
+3 |     for m in [|2|] and n in [|z; -3; 0; 1; 3|]
+                           ^
+Warning 26 [unused-var]: unused variable n.
 - : (int * '_weak60 * int * int * int * int * int) array = [||]
 |}];;
 
