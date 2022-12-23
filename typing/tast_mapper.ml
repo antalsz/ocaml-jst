@@ -265,7 +265,6 @@ let expr sub x =
             | Texp_comp_for bindings ->
                 Texp_comp_for
                   (List.map
-                     (* CR aspectorzabusky: Process patterns/attributes? *)
                      (fun {comp_cb_iterator; comp_cb_attributes} ->
                         let comp_cb_iterator = match comp_cb_iterator with
                           | Texp_comp_range
@@ -274,13 +273,15 @@ let expr sub x =
                               Texp_comp_range
                                 { ident
                                 ; pattern
+                                    (* Just mirroring [ident], ignored (see
+                                       [Texp_for] *)
                                 ; start = sub.expr sub start
                                 ; stop  = sub.expr sub stop
                                 ; direction }
                           | Texp_comp_in { pattern; sequence } ->
                               Texp_comp_in
-                                { pattern
-                                ; sequence = (sub.expr sub sequence) }
+                                { pattern = sub.pat sub pattern
+                                ; sequence = sub.expr sub sequence }
                         in
                         {comp_cb_iterator; comp_cb_attributes})
                      bindings)
