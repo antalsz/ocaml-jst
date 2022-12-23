@@ -186,7 +186,6 @@ type error =
   | Local_return_annotation_mismatch of Location.t
   | Bad_tail_annotation of [`Conflict|`Not_a_tailcall]
   | Optional_poly_param
-  | Multiply_bound_comprehension_variables of string list
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error
@@ -1187,38 +1186,69 @@ let split_cases env cases =
     | vp, ep -> add_case vals case vp, add_case exns case ep
   ) cases ([], [])
 
-(* Returns a pair of the identifier for this index and, optionally, the
-   corresponding pattern variable; we can omit the pattern variable, and thus
-   the caller can skip adding the identifier to the environment, if that
-   identifier was synthesized as a dummy name for an [_] ([Ppat_any]). *)
-let type_for_loop_like_index ~error ~loc ~env ~param =
+(* When typing a for-loop index or similar, we need to restrict ourselves to the
+   [Ppat_any] and [Ppat_var] cases, and construct a [pattern_variable] with
+   consistent fields.  However, in the case where we're reifying a name for
+   [Ppat_any], we don't need a pattern variable at all.  This function reifies
+   that pattern match and construction: [any] controls what happens with the
+   synthesized name for an [_] ([Ppat_any]), and [var] takes all the fields
+   necessary for a [pattern_variable] so that one can be created or, similarly,
+   so [enter_variable] can be called, depending on the usage. *)
+let type_for_loop_like_index ~error ~loc ~env ~param ~any ~var =
   match param.ppat_desc with
-  | Ppat_any -> Ident.create_local "_for", None
-  | Ppat_var {txt} ->
-      let var = Ident.create_local txt in
-      var, Some { pv_id         = var
-                ; pv_mode       = Value_mode.global
-                    (* It's always safe to put [int]s at the global mode, as
-                       they are immediates and so are indistinguishable no
-                       matter where they're allocated; global is better than
-                       local because it's the bottom of the lattice and can
-                       submode up freely *)
-                ; pv_type       = instance Predef.type_int
-                ; pv_loc        = loc
-                ; pv_as_var     = false
-                ; pv_attributes = [] }
+  | Ppat_any -> any (Ident.create_local "_for")
+  | Ppat_var name ->
+      var ~name
+          ~pv_mode:Value_mode.global
+          ~pv_type:(instance Predef.type_int)
+          ~pv_loc:loc
+          ~pv_as_var:false
+          ~pv_attributes:[]
   | _ ->
       raise (Error (param.ppat_loc, env, error))
 
 let type_for_loop_index ~loc ~env ~param =
-  let check s = Warnings.Unused_for_index s in
-  let var, pv =
-    type_for_loop_like_index ~error:Invalid_for_loop_index ~loc ~env ~param
-  in
-  var, add_pattern_variables ~check ~check_as:check env (Option.to_list pv)
+  type_for_loop_like_index
+    ~error:Invalid_for_loop_index
+    ~loc
+    ~env
+    ~param
+    (* We don't add the synthesized name for [_] to the environment because it
+       can't have been referenced later. *)
+    ~any:(fun wildcard_name -> wildcard_name, env)
+    ~var:(fun ~name:{txt; loc = _}
+              ~pv_mode
+              ~pv_type
+              ~pv_loc
+              ~pv_as_var
+              ~pv_attributes
+          ->
+            let check s = Warnings.Unused_for_index s in
+            let pv_id = Ident.create_local txt in
+            let pv =
+              { pv_id; pv_mode; pv_type; pv_loc; pv_as_var; pv_attributes }
+            in
+            pv_id, add_pattern_variables ~check ~check_as:check env [pv])
 
-let type_comprehension_for_range_iterator_index =
-  type_for_loop_like_index ~error:Invalid_comprehension_for_range_iterator_index
+let type_comprehension_for_range_iterator_index ~loc ~env ~param =
+  type_for_loop_like_index
+    ~error:Invalid_comprehension_for_range_iterator_index
+    ~loc
+    ~env
+    ~param
+    (* We don't [enter_variable] the synthesized name for [_] to the environment
+       because it can't have been referenced later so we don't need to track it
+       for duplicates or anything else. *)
+    ~any:Fun.id
+    ~var:(fun ~name ~pv_mode ~pv_type ~pv_loc ~pv_as_var ~pv_attributes ->
+            enter_variable
+              ~is_as_variable:pv_as_var
+              pv_loc
+              name
+              pv_mode
+              pv_type
+              pv_attributes)
+
 
 (* Type paths *)
 
@@ -6861,54 +6891,18 @@ and type_comprehension_clauses
     env
     clauses
 
+(* Calls [reset_pattern] *)
 and type_comprehension_clause ~loc ~comprehension_type ~container_type env
   : Extensions.Comprehensions.clause -> _ = function
   | For bindings ->
-      let tbindings, pvss =
-        List.split @@
+      reset_pattern true;
+      let tbindings =
         List.map
           (type_comprehension_binding
              ~loc ~comprehension_type ~container_type ~env)
           bindings
       in
-      (* CR aspectorzabusky: Is there a nicer way to test for redundant
-         variables?  I think it's as efficient as the [Multiply_bound_variable]
-         check, although that one is checked earlier, as it's a linear scan on
-         *each* variable. *)
-      let pvs = List.concat pvss in
-      (* Get the location of the *last* duplicate of the given variable *)
-      let rec duplicate_loc id dup_loc rest = function
-        | [] -> dup_loc, List.rev rest
-        | pv :: pvs ->
-            let dup_loc, rest =
-              (* CR aspectorzabusky: Can I use [Ident.equal] here, or do I need
-                 [Ident.name id = Ident.name pv.pv_id]? *)
-              if Ident.equal id pv.pv_id
-              then Some pv.pv_loc, rest
-              else dup_loc,        pv :: rest
-            in
-            duplicate_loc id dup_loc rest pvs
-      in
-      let rec duplicates dup_loc dups = function
-        | [] -> dup_loc, List.rev dups
-        | pv :: pvs ->
-            let id = pv.pv_id in
-            match duplicate_loc id None [] pvs with
-            | None, pvs ->
-                duplicates dup_loc dups pvs
-            | Some dup_loc, pvs ->
-                duplicates (Some dup_loc) (Ident.name id :: dups) pvs
-      in
-      begin
-        match duplicates None [] pvs with
-        | None,         [] -> ()
-        | Some dup_loc, (_ :: _ as dups) ->
-            raise
-              (Error(dup_loc, env, Multiply_bound_comprehension_variables dups))
-        | None, _ :: _ | Some _, [] ->
-            fatal_error "Comprehension for-and duplicate variable check \
-                         returned inconsistent results"
-      end;
+      let pvs = get_ref pattern_variables in
       let env =
         let check s = Warnings.Unused_var s in
         add_pattern_variables ~check ~check_as:check env pvs
@@ -6927,18 +6921,21 @@ and type_comprehension_clause ~loc ~comprehension_type ~container_type env
       in
       env, Texp_comp_when tcond
 
+(* Uses [pattern_variables] *)
 and type_comprehension_binding
       ~loc
       ~comprehension_type
       ~container_type
       ~env
       Extensions.Comprehensions.{ pattern; iterator; attributes } =
-  let comp_cb_iterator, pvs =
-    type_comprehension_iterator
-      ~loc ~env ~comprehension_type ~container_type pattern iterator
-  in
-  { comp_cb_iterator ; comp_cb_attributes = attributes }, pvs
+  { comp_cb_iterator =
+      type_comprehension_iterator
+        ~loc ~env ~comprehension_type ~container_type pattern iterator
+  ; comp_cb_attributes =
+      attributes
+  }
 
+(* Uses [pattern_variables] *)
 and type_comprehension_iterator
       ~loc ~env ~comprehension_type ~container_type pattern
   : Extensions.Comprehensions.iterator -> _ = function
@@ -6955,14 +6952,13 @@ and type_comprehension_iterator
       in
       let start = tbound ~explanation:Comprehension_for_start start in
       let stop  = tbound ~explanation:Comprehension_for_stop  stop  in
-      let ident, opv =
+      let ident =
         type_comprehension_for_range_iterator_index
           ~loc
           ~env
           ~param:pattern
       in
-      ( Texp_comp_range { ident; pattern; start; stop; direction }
-      , Option.to_list opv )
+      Texp_comp_range { ident; pattern; start; stop; direction }
   | In seq ->
       let item_ty = newvar () in
       let seq_ty = container_type item_ty in
@@ -6990,9 +6986,7 @@ and type_comprehension_iterator
           pattern
           item_ty
       in
-      let pvs = !pattern_variables in
-      pattern_variables := [];
-      Texp_comp_in { pattern; sequence }, pvs
+      Texp_comp_in { pattern; sequence }
 
 (* Typing of toplevel bindings *)
 
@@ -7620,25 +7614,6 @@ let report_error ~loc env = function
   | Optional_poly_param ->
       Location.errorf ~loc
         "Optional parameters cannot be polymorphic"
-  | Multiply_bound_comprehension_variables names ->
-      let plural = match names with
-        | [_] -> false
-        | _   -> true
-      in
-      Location.errorf ~loc
-        "The variable%s%s %s bound several times in this comprehension's \
-         for-and binding"
-        (if plural then "s" else "")
-        (let rec go sep = function
-           | [] -> ""
-           | name :: names ->
-               let sep' = match names with
-                 | [_] -> sep ^ "and "
-                 | _ -> ", "
-               in
-               sep ^ name ^ go sep' names
-         in go " " names)
-        (if plural then "are" else "is")
 
 let report_error ~loc env err =
   Printtyp.wrap_printing_env ~error:true env

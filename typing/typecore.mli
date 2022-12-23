@@ -250,7 +250,6 @@ type error =
   | Local_return_annotation_mismatch of Location.t
   | Bad_tail_annotation of [`Conflict|`Not_a_tailcall]
   | Optional_poly_param
-  | Multiply_bound_comprehension_variables of string list
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error

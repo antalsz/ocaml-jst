@@ -317,7 +317,7 @@ Error: This expression has type float but an expression was expected of type
 Line 1, characters 0-39:
 1 | [|i for i = 1 to 3 and i = 3 downto 1|];;
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: The variable i is bound several times in this comprehension's for-and binding
+Error: Variable i is bound several times in this matching
 |}];;
 
 [|i for i = 1 to 3 and i in [|10; 20; 30|]|];;
@@ -325,7 +325,7 @@ Error: The variable i is bound several times in this comprehension's for-and bin
 Line 1, characters 23-24:
 1 | [|i for i = 1 to 3 and i in [|10; 20; 30|]|];;
                            ^
-Error: The variable i is bound several times in this comprehension's for-and binding
+Error: Variable i is bound several times in this matching
 |}];;
 
 [|i for i in [|1; 2; 3|] and i = 3 downto 1|];;
@@ -333,7 +333,7 @@ Error: The variable i is bound several times in this comprehension's for-and bin
 Line 1, characters 0-45:
 1 | [|i for i in [|1; 2; 3|] and i = 3 downto 1|];;
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: The variable i is bound several times in this comprehension's for-and binding
+Error: Variable i is bound several times in this matching
 |}];;
 
 [|i for i in [|1; 2; 3|] and i in [|10; 20; 30|]|];;
@@ -341,7 +341,7 @@ Error: The variable i is bound several times in this comprehension's for-and bin
 Line 1, characters 29-30:
 1 | [|i for i in [|1; 2; 3|] and i in [|10; 20; 30|]|];;
                                  ^
-Error: The variable i is bound several times in this comprehension's for-and binding
+Error: Variable i is bound several times in this matching
 |}];;
 
 [|i for i, j in [|1, 10; 2, 20; 3, 30|] and k, i in [|10, 1; 20, 2; 30, 3|]|];
@@ -349,7 +349,7 @@ Error: The variable i is bound several times in this comprehension's for-and bin
 Line 1, characters 47-48:
 1 | [|i for i, j in [|1, 10; 2, 20; 3, 30|] and k, i in [|10, 1; 20, 2; 30, 3|]|];
                                                    ^
-Error: The variable i is bound several times in this comprehension's for-and binding
+Error: Variable i is bound several times in this matching
 |}];;
 
 (* Variables bind from left to right, not right to left *)
