@@ -6825,16 +6825,11 @@ and type_comprehension_expr ~loc ~env ~ty_expected ~expected_mode:_ cexpr =
         comp
   in
   if !Clflags.principal then begin_def ();
-  let element_ty = Ctype.newvar ()  in
+  let element_ty = newvar ()  in
   unify_exp_types
     loc
     env
-    (* CR aspectorzabusky: I deleted a call to [instance] here; I'm not sure if
-       I can delete the call to [instance] on the next line, but it seems to
-       work.  The call to instance in the return value seems to be necessary, as
-       test output gets worse if I delete it.  How should I be thinking about
-       this? *)
-    (container_type element_ty)
+    (instance (container_type element_ty))
     (instance ty_expected);
   if !Clflags.principal then begin
     end_def();
