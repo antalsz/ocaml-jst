@@ -241,13 +241,13 @@ let expr sub {exp_extra; exp_desc; exp_env; _} =
       (function
         | Texp_comp_for bindings ->
             List.iter
-              (* CR aspectorzabusky: Process patterns/attributes? *)
               (fun { comp_cb_iterator; comp_cb_attributes = _ } ->
                  match comp_cb_iterator with
                  | Texp_comp_range { ident = _; start; stop; direction = _ } ->
                      sub.expr sub start;
                      sub.expr sub stop
-                 | Texp_comp_in { pattern = _; sequence } ->
+                 | Texp_comp_in { pattern; sequence } ->
+                     sub.pat sub pattern;
                      sub.expr sub sequence)
               bindings
         | Texp_comp_when exp ->
