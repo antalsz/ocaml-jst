@@ -115,7 +115,7 @@ let ( rev_list_to_list
     building the intermediate restults of list comprehensions; see the
     documentation for [CamlinternalComprehension.rev_list] for more details. *)
 let rev_list_snoc_local ~loc ~init ~last =
-  Lprim(Pmakeblock(0, Immutable, None, Lambda.alloc_local), [init; last], loc)
+  Lprim(Pmakeblock(0, Immutable, None, alloc_local), [init; last], loc)
 
 (** The [CamlinternalComprehension.Nil] constructor, for building the
     intermediate restults of list comprehensions; see the documentation for
@@ -234,7 +234,6 @@ let rec translate_bindings
           ~inner_body ~accumulator:(Lvar inner_acc) bindings
       in
       let body_func =
-        (* CR aspectorzabusky: How do I make this function stack allocate its result? *)
         Lambda.lfunction
           ~kind:(Curried { nlocal = 1 }) (* The accumulator is local *)
           ~params:[element, element_kind; inner_acc, Pgenval]
@@ -242,13 +241,13 @@ let rec translate_bindings
           ~attr:default_function_attribute
           ~loc
           ~mode:alloc_local
-          ~region:true
-              (* CR aspectorzabusky: We want one region per iterator, right? *)
+          ~region:true (* One region per iterator, like for loops *)
           ~body:(add_bindings body)
       in
       let result =
         Lambda_utils.apply
           ~loc
+          ~mode:alloc_local
           (Lazy.force builder)
           (List.map (fun Let_binding.{id; _} -> Lvar id) arg_lets @
            [body_func; accumulator])
@@ -298,4 +297,8 @@ let comprehension ~transl_exp ~scopes ~loc { comp_body; comp_clauses } =
       ~accumulator:rev_list_nil
       comp_clauses
   in
-  Lambda_utils.apply ~loc (Lazy.force rev_list_to_list) [rev_comprehension]
+  Lambda_utils.apply
+    ~loc
+    ~mode:alloc_heap
+    (Lazy.force rev_list_to_list)
+    [rev_comprehension]
