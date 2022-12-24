@@ -2510,8 +2510,20 @@ comprehension_iterator:
 ;
 
 comprehension_clause_binding:
-  attributes pattern comprehension_iterator
-    { Extensions.Comprehensions.{ pattern = $2 ; iterator = $3 ; attributes = $1 } }
+  | attributes pattern comprehension_iterator
+      { Extensions.Comprehensions.{ pattern = $2 ; iterator = $3 ; attributes = $1 } }
+  (* We can't write [[e for local_ x = 1 to 10]], because the [local_] has to
+     move to the RHS and there's nowhere for it to move to; besides, you never
+     want that [int] to be [local_].  But we can parse [[e for local_ x in xs]].
+     We have to have that as a separate rule here because it moves the [local_]
+     over to the RHS of the binding, so we need everything to be visible. *)
+  | attributes LOCAL pattern IN expr
+      { Extensions.Comprehensions.
+          { pattern    = $3
+          ; iterator   = In (mkexp_stack ~loc:$sloc ~kwd_loc:($loc($2)) $5)
+          ; attributes = $1
+          }
+      }
 ;
 
 comprehension_clause:
