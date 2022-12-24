@@ -47,14 +47,12 @@ module Lambda_utils = struct
 
   let apply
         ~loc
+        ~mode
         func
         args =
     (* These defaultscould be promoted to optional arguments if they were more
        widely used *)
     let region_close = Rc_normal in
-    (* CR aspectorzabusky: I think [alloc_heap] is the right default for
-       [ap_mode], but I don't understand what [ap_mode] means. *)
-    let mode         = alloc_heap in
     let tailcall     = Default_tailcall in
     let inlined      = Default_inlined in
     let specialised  = Default_specialise in
