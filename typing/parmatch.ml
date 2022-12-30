@@ -303,7 +303,6 @@ module Compat
       compats ps qs
   | Tpat_array (am1, ps), Tpat_array (am2, qs) ->
       am1 = am2 &&
-      (* CR aspectorzabusky: Can't we drop the length check here? *)
       List.length ps = List.length qs &&
       compats ps qs
   | _,_  -> false

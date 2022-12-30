@@ -10,7 +10,13 @@ open! Stdlib
    iarrayLabels.mli instead.
  *)
 
-(** Operations on immutable arrays. *)
+(* If you update any types in this module, you need to update iarray.ml as well;
+   it uses Obj.magic, so changes won't be detected. *)
+
+(** Operations on immutable arrays.  This module mirrors the API of [Array], but
+    omits functions that assume mutability; in particular, it omits [copy] along
+    with the functions [make], [create_float], and [make_matrix] that produce
+    all-constant arrays. *)
 
 type +'a t = 'a iarray
 (** An alias for the type of immutable arrays. *)
@@ -30,23 +36,6 @@ external get : 'a iarray -> int -> 'a = "%array_safe_get"
 external ( .:() ) : 'a iarray -> int -> 'a = "%array_safe_get"
 (** A synonym for [get]. *)
 
-external make : int -> 'a -> 'a iarray = "caml_make_vect"
-(** [make n x] returns a fresh immutable array of length [n],
-   initialized with [x].
-   All the elements of this new array are initially
-   physically equal to [x] (in the sense of the [==] predicate).
-   Consequently, if [x] is mutable, it is shared among all elements
-   of the array, and modifying [x] through one of the array entries
-   will modify all other entries at the same time.
-
-   @raise Invalid_argument if [n < 0] or [n > Sys.max_array_length].
-   If the value of [x] is a floating-point number, then the maximum
-   size is only [Sys.max_array_length / 2]. *)
-
-external create_float: int -> float iarray = "caml_make_float_vect"
-(** [create_float n] returns a fresh immutable float array of length [n],
-    with uninitialized data. *)
-
 val init : int -> (int -> 'a) -> 'a iarray
 (** [init n f] returns a fresh immutable array of length [n],
    with element number [i] initialized to the result of [f i].
@@ -55,20 +44,6 @@ val init : int -> (int -> 'a) -> 'a iarray
 
    @raise Invalid_argument if [n < 0] or [n > Sys.max_array_length].
    If the return type of [f] is [float], then the maximum
-   size is only [Sys.max_array_length / 2]. *)
-
-val make_matrix :
-  int -> int -> 'a -> 'a iarray iarray
-(** [make_matrix dimx dimy e] returns a two-dimensional immutable array
-   (an immutable array of immutable arrays) with first dimension [dimx] and
-   second dimension [dimy]. All the elements of this new matrix
-   are initially physically equal to [e].
-   The element ([x,y]) of a matrix [m] is accessed
-   with the notation [m.:(x).:(y)].
-
-   @raise Invalid_argument if [dimx] or [dimy] is negative or
-   greater than {!Sys.max_array_length}.
-   If the value of [e] is a floating-point number, then the maximum
    size is only [Sys.max_array_length / 2]. *)
 
 val append : 'a iarray -> 'a iarray -> 'a iarray

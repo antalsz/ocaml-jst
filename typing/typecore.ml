@@ -25,8 +25,7 @@ open Ctype
 
 type comprehension_type =
   | List_comprehension
-  | Array_comprehension
-  | Iarray_comprehension
+  | Array_comprehension of mutable_flag
 
 type type_forcing_context =
   | If_conditional
@@ -6804,11 +6803,11 @@ and type_comprehension_expr
         (fun tcomp -> Texp_list_comprehension tcomp),
         comp
     | Cexp_array_comprehension (amut, comp) ->
-        let comprehension_type, container_type = match amut with
-          | Mutable   -> Array_comprehension,  Predef.type_array
-          | Immutable -> Iarray_comprehension, Predef.type_iarray
+        let container_type = match amut with
+          | Mutable   -> Predef.type_array
+          | Immutable -> Predef.type_iarray
         in
-        comprehension_type,
+        Array_comprehension amut,
         container_type,
         (fun tcomp -> Texp_array_comprehension (amut, tcomp)),
         comp
@@ -7106,11 +7105,9 @@ let report_type_expected_explanation expl ppf =
   | Comprehension_in_iterator comp_ty ->
       let a_comp_ty =
         match comp_ty with
-        | List_comprehension   -> "a list"
-        | Array_comprehension  -> "an array" (* CR aspectorzabusky: We should
-                                                omit the word "mutable" here,
-                                                right? *)
-        | Iarray_comprehension -> "an immutable array"
+        | List_comprehension            -> "a list"
+        | Array_comprehension Mutable   -> "an array"
+        | Array_comprehension Immutable -> "an immutable array"
       in
       because ("a for-in iterator in " ^ a_comp_ty ^ " comprehension")
   | Comprehension_for_start ->
