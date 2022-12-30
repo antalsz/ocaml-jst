@@ -198,10 +198,6 @@ let classify_expression : Typedtree.expression -> sd =
         Static
 
     | Texp_match _
-    (* CR aspectorzabusky: As I understand it, list comprehensions can't be
-       [Static] (they could be headed by [[]] or [( :: )]), but could array
-       comprehensions be?  They're always an array.  But do we even *want* that?
-       I've left them both [Dynamic] for now. *)
     | Texp_list_comprehension _
     | Texp_array_comprehension _
     | Texp_ifthenelse _
