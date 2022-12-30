@@ -158,33 +158,9 @@ Iarray.get ifarray 5;;
 Exception: Invalid_argument "index out of bounds".
 |}];;
 
-Iarray.make 7 "tada";;
-[%%expect{|
-- : string iarray =
-[:"tada"; "tada"; "tada"; "tada"; "tada"; "tada"; "tada":]
-|}];;
-
-Iarray.make 10 1.5;;
-[%%expect{|
-- : float iarray = [:1.5; 1.5; 1.5; 1.5; 1.5; 1.5; 1.5; 1.5; 1.5; 1.5:]
-|}];;
-
-Iarray.create_float 10;;
-[%%expect{|
-- : float iarray = [:0.; 0.; 0.; 0.; 0.; 0.; 0.; 0.; 0.; 0.:]
-|}];;
-
 Iarray.init 10 (fun x -> x * 2);;
 [%%expect{|
 - : int iarray = [:0; 2; 4; 6; 8; 10; 12; 14; 16; 18:]
-|}];;
-
-Iarray.make_matrix 3 10 ();;
-[%%expect{|
-- : unit iarray iarray =
-[:[:(); (); (); (); (); (); (); (); (); ():];
-  [:(); (); (); (); (); (); (); (); (); ():];
-  [:(); (); (); (); (); (); (); (); (); ():]:]
 |}];;
 
 Iarray.append iarray iarray;;
@@ -197,9 +173,11 @@ Iarray.concat [];;
 - : 'a iarray = [::]
 |}];;
 
-Iarray.concat [Iarray.make 1 'a'; Iarray.make 2 'b'; Iarray.make 3 'c'];;
+Iarray.concat [ Iarray.init 1 (fun x ->   1 + x)
+              ; Iarray.init 2 (fun x ->  20 + x)
+              ; Iarray.init 3 (fun x -> 300 + x) ];;
 [%%expect{|
-- : char iarray = [:'a'; 'b'; 'b'; 'c'; 'c'; 'c':]
+- : int iarray = [:1; 20; 21; 300; 301; 302:]
 |}];;
 
 Iarray.sub iarray 0 2, Iarray.sub iarray 2 3;;
@@ -378,12 +356,12 @@ Iarray.mem 30 iarray, Iarray.mem 35. ifarray;;
 |}];;
 
 let x = ref 0 in
-Iarray.memq x (Iarray.make 3 x);;
+Iarray.memq x (Iarray.init 3 (Fun.const x));;
 [%%expect{|
 - : bool = true
 |}];;
 
-Iarray.memq (ref 0) (Iarray.make 3 (ref 0))
+Iarray.memq (ref 0) (Iarray.init 3 (Fun.const (ref 0)))
 [%%expect{|
 - : bool = false
 |}];;
