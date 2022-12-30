@@ -75,6 +75,30 @@
     all the messy AST-manipulation here, and work with it abstractly while
     defining the language extensions themselves.  *)
 
+(** Errors around the extension representation.  These should mostly just be
+    fatal, but they're needed for one test case
+    (tests/ast-invariants/test.ml). *)
+module Error : sig
+  (** Someone used [[%extension.EXTNAME]] wrong *)
+  type malformed_extension =
+    | Has_payload of Parsetree.payload
+    | Wrong_arguments of (Asttypes.arg_label * Parsetree.expression) list
+    | Wrong_tuple of Parsetree.pattern list
+
+  (** An error triggered when desugaring a language extension from an OCaml AST *)
+  type error =
+    | Malformed_extension of string list * malformed_extension
+    | Unknown_extension of string
+    | Disabled_extension of Clflags.Extension.t
+    | Wrong_syntactic_category of Clflags.Extension.t * string
+    | Unnamed_extension
+    | Bad_introduction of string * string list
+
+  (** The main exception type thrown when desugaring a language extension from an
+      OCaml AST; we also use the occasional [Misc.fatal_errorf]. *)
+  exception Error of Location.t * error
+end
+
 (** The type of modules that lift and lower language extension terms from and
     to an OCaml AST type ([ast]) *)
 module type AST = sig

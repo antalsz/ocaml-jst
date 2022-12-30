@@ -48,27 +48,24 @@
 open Parsetree
 
 (******************************************************************************)
-(** Errors around the extension representation.  We don't export these because
-    they should probably just be fatal, but we could change that. *)
+module Error = struct
+  type malformed_extension =
+    | Has_payload of payload
+    | Wrong_arguments of (Asttypes.arg_label * expression) list
+    | Wrong_tuple of pattern list
 
-(** Someone used [[%extension.EXTNAME]] wrong *)
-type malformed_extension =
-  | Has_payload of payload
-  | Wrong_arguments of (Asttypes.arg_label * expression) list
-  | Wrong_tuple of pattern list
+  type error =
+    | Malformed_extension of string list * malformed_extension
+    | Unknown_extension of string
+    | Disabled_extension of Clflags.Extension.t
+    | Wrong_syntactic_category of Clflags.Extension.t * string
+    | Unnamed_extension
+    | Bad_introduction of string * string list
 
-(** An error triggered when desugaring a language extension from an OCaml AST *)
-type error =
-  | Malformed_extension of string list * malformed_extension
-  | Unknown_extension of string
-  | Disabled_extension of Clflags.Extension.t
-  | Wrong_syntactic_category of Clflags.Extension.t * string
-  | Unnamed_extension
-  | Bad_introduction of string * string list
+  exception Error of Location.t * error
+end
 
-(** The main exception type thrown when desugaring a language extension from an
-    OCaml AST; we also use the occasional [Misc.fatal_errorf]. *)
-exception Error of Location.t * error
+open Error
 
 let assert_extension_enabled ~loc ext =
   if not (Clflags.Extension.is_enabled ext) then

@@ -255,6 +255,7 @@ parsing/ast_invariants.cmo : \
     parsing/syntaxerr.cmi \
     parsing/parsetree.cmi \
     parsing/longident.cmi \
+    parsing/extensions.cmi \
     parsing/builtin_attributes.cmi \
     parsing/asttypes.cmi \
     parsing/ast_iterator.cmi \
@@ -263,6 +264,7 @@ parsing/ast_invariants.cmx : \
     parsing/syntaxerr.cmx \
     parsing/parsetree.cmi \
     parsing/longident.cmx \
+    parsing/extensions.cmx \
     parsing/builtin_attributes.cmx \
     parsing/asttypes.cmi \
     parsing/ast_iterator.cmx \
@@ -435,7 +437,8 @@ parsing/extensions_parsing.cmx : \
 parsing/extensions_parsing.cmi : \
     parsing/parsetree.cmi \
     parsing/location.cmi \
-    utils/clflags.cmi
+    utils/clflags.cmi \
+    parsing/asttypes.cmi
 parsing/lexer.cmo : \
     utils/warnings.cmi \
     parsing/parser.cmi \
