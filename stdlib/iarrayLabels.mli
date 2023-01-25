@@ -58,7 +58,8 @@ val concat : 'a iarray list -> 'a iarray
 val sub : 'a iarray -> pos:int -> len:int -> 'a iarray
 (** [sub a ~pos ~len] returns a fresh immutable array of length [len],
    containing the elements number [pos] to [pos + len - 1]
-   of immutable array [a].
+   of immutable array [a].  This creates a copy of the selected
+   portion of the immutable array.
 
    @raise Invalid_argument if [pos] and [len] do not
    designate a valid subarray of [a]; that is, if
@@ -75,12 +76,6 @@ val of_list : 'a list -> 'a iarray
    [Sys.max_array_length]. *)
 
 (** {1 Converting to and from mutable arrays} *)
-
-(* CR aspectorzabusky: When we add locals, we can do
-   {[
-     val with_array : int -> 'a -> f:local_ (local_ 'a array -> 'b) -> 'a iarray * 'b
-     val with_array' : int -> 'a -> f:local_ (local_ 'a array -> unit) -> 'a iarray
-   ]} *)
 
 val to_array : 'a iarray -> 'a array
 (** [to_array a] returns a mutable copy of the immutable array [a]; that is, a

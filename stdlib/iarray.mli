@@ -64,9 +64,6 @@ val sub : 'a iarray -> int -> int -> 'a iarray
    designate a valid subarray of [a]; that is, if
    [pos < 0], or [len < 0], or [pos + len > length a]. *)
 
-(* CR aspectorzabusky: I dropped [copy] because these are immutable.  Is there
-   another reason to leave it in? *)
-
 val to_list : 'a iarray -> 'a list
 (** [to_list a] returns the list of all the elements of [a]. *)
 
@@ -78,12 +75,6 @@ val of_list : 'a list -> 'a iarray
    [Sys.max_array_length]. *)
 
 (** {1 Converting to and from mutable arrays} *)
-
-(* CR aspectorzabusky: When we add locals, we can do
-   {[
-     val with_array : int -> 'a -> f:local_ (local_ 'a array -> 'b) -> 'a iarray * 'b
-     val with_array' : int -> 'a -> f:local_ (local_ 'a array -> unit) -> 'a iarray
-   ]} *)
 
 val to_array : 'a iarray -> 'a array
 (** [to_array a] returns a mutable copy of the immutable array [a]; that is, a
