@@ -291,11 +291,11 @@ module Make(O : OBJ)(EVP : EVALPATH with type valu = O.t) = struct
                 Oval_list []
           | Tconstr(path, [ty_arg], _)
             when Path.same path Predef.path_array ->
-              tree_of_generic_array (fun elts -> Oval_array elts) depth obj ty_arg
+              tree_of_generic_array Asttypes.Mutable depth obj ty_arg
           | Tconstr(path, [ty_arg], _)
             when Path.same path Predef.path_iarray ->
-              tree_of_generic_array (fun elts -> Oval_iarray elts) depth obj ty_arg
-            
+              tree_of_generic_array Asttypes.Immutable depth obj ty_arg
+
           | Tconstr(path, [], _)
               when Path.same path Predef.path_string ->
             Oval_string ((O.obj obj : string), !printer_steps, Ostr_string)
@@ -503,7 +503,8 @@ module Make(O : OBJ)(EVP : EVALPATH with type valu = O.t) = struct
               tree :: tree_list (i + 1) ty_list in
       tree_list start ty_list
 
-      and tree_of_generic_array oval depth obj ty_arg =
+      and tree_of_generic_array am depth obj ty_arg =
+        let oval elts = Oval_array (elts, am) in
         let length = O.size obj in
         if length > 0 then
           match check_depth depth obj ty with
@@ -522,7 +523,7 @@ module Make(O : OBJ)(EVP : EVALPATH with type valu = O.t) = struct
               oval (List.rev (tree_of_items [] 0))
         else
           oval []
-        
+
       and tree_of_constr_with_args
              tree_of_cstr cstr_name inlined start depth obj ty_args unboxed =
         let lid = tree_of_cstr (Out_name.create cstr_name) in

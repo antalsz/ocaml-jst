@@ -269,10 +269,6 @@ and expression_desc =
   | Texp_setfield of
       expression * Longident.t loc * Types.label_description * expression
   | Texp_array of mutable_flag * expression list
-    (* CR aspectorzabusky: This ended up feeling clearer to me than two
-       constructors, since we want to share a lot of code, but I welcome other
-       opinions; it was more marginal than [Tpat_array], but the consistency
-       with [Tpat_array] was another reason I liked this *)
   | Texp_list_comprehension of comprehension
   | Texp_array_comprehension of mutable_flag * comprehension
   | Texp_ifthenelse of expression * expression * expression option

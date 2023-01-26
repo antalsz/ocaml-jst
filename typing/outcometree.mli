@@ -39,8 +39,7 @@ type out_attribute =
   { oattr_name: string }
 
 type out_value =
-  | Oval_array of out_value list
-  | Oval_iarray of out_value list (* CR aspectorzabusky: Or [Oval_immutable_array]? *)
+  | Oval_array of out_value list * Asttypes.mutable_flag
   | Oval_char of char
   | Oval_constr of out_ident * out_value list
   | Oval_ellipsis

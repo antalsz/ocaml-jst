@@ -6510,6 +6510,7 @@ toplevel/genprintval.cmo : \
     typing/datarepr.cmi \
     typing/ctype.cmi \
     typing/btype.cmi \
+    parsing/asttypes.cmi \
     toplevel/genprintval.cmi
 toplevel/genprintval.cmx : \
     typing/types.cmx \
@@ -6528,6 +6529,7 @@ toplevel/genprintval.cmx : \
     typing/datarepr.cmx \
     typing/ctype.cmx \
     typing/btype.cmx \
+    parsing/asttypes.cmi \
     toplevel/genprintval.cmi
 toplevel/genprintval.cmi : \
     typing/types.cmi \
