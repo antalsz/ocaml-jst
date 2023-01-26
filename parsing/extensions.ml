@@ -94,7 +94,15 @@
     one, we provide [extension_expr]; to destructure one, we provide
     [expand_extension_expr].  We still have to write the transformations in both
     directions for all new syntax, lowering it to extension nodes and then
-    (somewhat more obnoxiously) lifting it back out. *)
+    (somewhat more obnoxiously) lifting it back out.
+
+    (We often want to specify what our syntax extensions look like when
+    desugared into OCaml ASTs, so that we can validate the translation code.  We
+    generally specify this as a BNF grammar, but we don't want to depend on the
+    specific details of the desugaring.  Thus, instead of writing out extension
+    points or attributes directly, we write the result of [extension_expr ~loc
+    [name1; name2; ...; NameN] expr] as [{% 'name1.name2.....nameN' | expr %}]
+    in the BNF.  Other pieces of the OCaml AST are used as normal. *)
 
 open Parsetree
 
@@ -256,13 +264,9 @@ module Comprehensions = struct
     | Cexp_array_comprehension of comprehension
         (** [|BODY ...CLAUSES...|] *)
 
-  (* CR aspectorzabusky: Move the general description of how these BNF grammars
-     work to the general modular extensions machinery, and then refer back to
-     it. *)
-  (* CR aspectorzabusky: Elaborate on the second intro sentence, like, a lot. *)
   (* The desugared-to-OCaml version of comprehensions is described by the
-     following BNF.  We specify the result of [extension_expr ~loc [name1;
-     name2; ...; NameN] expr] as [{% 'name1.name2.....nameN' | expr %}].
+     following BNF, where [{% '...' | expr %}] refers to the result of
+     [extension_expr] as described at the start of this file.
 
      {v
          comprehension ::=
