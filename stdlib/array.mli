@@ -27,7 +27,7 @@ open! Stdlib
 (* CR aspectorzabusky: When I ran [tools/sync_stdlib_docs], it copied the
    initial [# 1 "arrayLabels.mli"] line to [array.mli] without modifying the
    filename, as well as copying the [[@@@ocaml.nolabels]] line.  It also did
-   that to [{bytes,float,hashtbl,list,map,moreLAbels,set,string}.mli].  It also
+   that to [{bytes,float,hashtbl,list,map,moreLabels,set,string}.mli].  It also
    clobbered our local annotations in [float.mli].  Did I do something wrong or
    did something change? *)
 

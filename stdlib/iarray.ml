@@ -42,6 +42,9 @@ let mapi =
   Obj.magic (Array.mapi : (int -> 'a -> 'b) -> 'a array -> 'b array)
 let fold_left =
   Obj.magic (Array.fold_left : ('a -> 'b -> 'a) -> 'a -> 'b array -> 'a)
+let fold_left_map =
+  Obj.magic (Array.fold_left_map :
+               ('a -> 'b -> 'a * 'c) -> 'a -> 'b array -> 'a * 'c array)
 let fold_right =
   Obj.magic (Array.fold_right : ('b -> 'a -> 'a) -> 'b array -> 'a -> 'a)
 let iter2 =
@@ -60,12 +63,33 @@ let mem =
   Obj.magic (Array.mem : 'a -> 'a array -> bool)
 let memq =
   Obj.magic (Array.memq : 'a -> 'a array -> bool)
+let find_opt =
+  Obj.magic (Array.find_opt : ('a -> bool) -> 'a array -> 'a option)
+let find_map =
+  Obj.magic (Array.find_map : ('a -> 'b option) -> 'a array -> 'b option)
+let split =
+  Obj.magic (Array.split : ('a * 'b) array -> 'a array * 'b array)
+let combine =
+  Obj.magic (Array.combine : 'a array -> 'b array -> ('a * 'b) array)
 let to_seq =
   Obj.magic (Array.to_seq : 'a array -> 'a Seq.t)
 let to_seqi =
   Obj.magic (Array.to_seqi : 'a array -> (int * 'a) Seq.t)
 let of_seq =
   Obj.magic (Array.of_seq : 'a Seq.t -> 'a array)
+
+(* Only safe if the array isn't used after this call *)
+let unsafe_of_array : 'a array -> 'a iarray = Obj.magic
+
+(* Must be fully applied due to the value restriction *)
+let lift_sort sorter cmp iarr =
+  let arr = Array.of_iarray iarr in
+  sorter cmp arr;
+  unsafe_of_array arr
+
+let sort cmp iarr = lift_sort Array.sort cmp iarr
+let stable_sort cmp iarr = lift_sort Array.stable_sort cmp iarr
+let fast_sort cmp iarr = lift_sort Array.fast_sort cmp iarr
 
 let to_array = Array.of_iarray
 let of_array = Array.to_iarray

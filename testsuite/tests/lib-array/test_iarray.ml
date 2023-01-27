@@ -281,6 +281,17 @@ Iarray.fold_left (fun acc x -> -x :: acc) [] iarray;;
 - : int list = [-5; -4; -3; -2; -1]
 |}];;
 
+Iarray.fold_left_map (fun acc x -> acc + x, string_of_int x) 0 iarray;;
+[%%expect{|
+- : int * string iarray = (15, [:"1"; "2"; "3"; "4"; "5":])
+|}];;
+
+(* Confirm the function isn't called on the empty immutable array *)
+Iarray.fold_left_map (fun _ _ -> assert false) 0 [::];;
+[%%expect{|
+- : int * 'a iarray = (0, [::])
+|}];;
+
 Iarray.fold_right (fun x acc -> -.x :: acc) ifarray [];;
 [%%expect{|
 - : float list = [-1.5; -2.5; -3.5; -4.5; -5.5]
@@ -366,6 +377,101 @@ Iarray.memq (ref 0) (Iarray.init 3 (Fun.const (ref 0)))
 - : bool = false
 |}];;
 
+Iarray.find_opt (fun x -> x*x  > 5)  iarray,
+Iarray.find_opt (fun x -> x*.x > 5.) ifarray;;
+[%%expect{|
+- : int option * float option = (Some 3, Some 2.5)
+|}];;
+
+Iarray.find_opt (fun x -> x*x  > 50)  iarray,
+Iarray.find_opt (fun x -> x*.x > 50.) ifarray;;
+[%%expect{|
+- : int option * float option = (None, None)
+|}];;
+
+Iarray.find_map (fun x -> if x mod 2 = 0
+                          then Some (x / 2)
+                          else None)
+                iarray,
+Iarray.find_map (fun x -> if Float.rem x 2. = 0.5
+                          then Some ((x -. 0.5) /. 2.)
+                          else None)
+                ifarray;;
+[%%expect{|
+- : int option * float option = (Some 1, Some 1.)
+|}];;
+
+Iarray.find_map (fun x -> if x mod 7 = 0
+                          then Some (x / 7)
+                          else None)
+                iarray,
+Iarray.find_map (fun x -> if Float.rem x 7. = 0.5
+                          then Some ((x -. 0.5) /. 7.)
+                          else None)
+                ifarray;;
+[%%expect{|
+- : int option * float option = (None, None)
+|}];;
+
+Iarray.split [: 1, "a"; 2, "b"; 3, "c" :];;
+[%%expect{|
+- : int iarray * string iarray = ([:1; 2; 3:], [:"a"; "b"; "c":])
+|}];;
+
+Iarray.split [::];;
+[%%expect{|
+- : 'a iarray * 'b iarray = ([::], [::])
+|}];;
+
+Iarray.combine iarray ifarray;;
+[%%expect{|
+- : (int * float) iarray =
+[:(1, 1.5); (2, 2.5); (3, 3.5); (4, 4.5); (5, 5.5):]
+|}];;
+
+Iarray.combine [::] [::];;
+[%%expect{|
+- : ('a * 'b) iarray = [::]
+|}];;
+
+Iarray.combine iarray [: "wrong length" :];;
+[%%expect{|
+Exception: Invalid_argument "Array.combine".
+|}];;
+
+Iarray.sort (Fun.flip Int.compare) iarray,
+Iarray.sort (Fun.flip Float.compare) ifarray;;
+[%%expect{|
+- : int iarray * Float.t iarray =
+([:5; 4; 3; 2; 1:], [:5.5; 4.5; 3.5; 2.5; 1.5:])
+|}];;
+
+Iarray.stable_sort (Fun.flip Int.compare) iarray,
+Iarray.stable_sort (Fun.flip Float.compare) ifarray;;
+[%%expect{|
+- : int iarray * Float.t iarray =
+([:5; 4; 3; 2; 1:], [:5.5; 4.5; 3.5; 2.5; 1.5:])
+|}];;
+
+(* Check stability *)
+Iarray.stable_sort
+  (fun s1 s2 -> Int.compare (String.length s1) (String.length s2))
+  [: "zero"; "one"; "two"; "three"; "four";
+     "five"; "six"; "seven"; "eight"; "nine";
+     "ten" :];;
+[%%expect{|
+- : string iarray =
+[:"one"; "two"; "six"; "ten"; "zero"; "four"; "five"; "nine"; "three";
+  "seven"; "eight":]
+|}];;
+
+Iarray.fast_sort (Fun.flip Int.compare) iarray,
+Iarray.fast_sort (Fun.flip Float.compare) ifarray;;
+[%%expect{|
+- : int iarray * Float.t iarray =
+([:5; 4; 3; 2; 1:], [:5.5; 4.5; 3.5; 2.5; 1.5:])
+|}];;
+
 Iarray.to_seq iarray |> List.of_seq;;
 [%%expect{|
 - : int list = [1; 2; 3; 4; 5]
@@ -403,6 +509,18 @@ mfarray;;
 |}];;
 
 Array.fill (Iarray.to_array ifarray) 0 3 10.;
+ifarray;;
+[%%expect{|
+- : float iarray = [:1.5; 2.5; 3.5; 4.5; 5.5:]
+|}];;
+
+(* Confirm that nothing has changed *)
+
+iarray;;
+[%%expect{|
+- : int iarray = [:1; 2; 3; 4; 5:]
+|}];;
+
 ifarray;;
 [%%expect{|
 - : float iarray = [:1.5; 2.5; 3.5; 4.5; 5.5:]

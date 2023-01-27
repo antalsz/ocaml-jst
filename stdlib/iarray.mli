@@ -111,6 +111,11 @@ val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b iarray -> 'a
    [f (... (f (f init a.:(0)) a.:(1)) ...) a.:(n-1)],
    where [n] is the length of the immutable array [a]. *)
 
+val fold_left_map :
+  ('a -> 'b -> 'a * 'c) -> 'a -> 'b iarray -> 'a * 'c iarray
+(** [fold_left_map] is a combination of {!fold_left} and {!map} that threads an
+    accumulator through calls to [f]. *)
+
 val fold_right : ('b -> 'a -> 'a) -> 'b iarray -> 'a -> 'a
 (** [fold_right f a init] computes
    [f a.:(0) (f a.:(1) ( ... (f a.:(n-1) init) ...))],
@@ -164,7 +169,67 @@ val memq : 'a -> 'a iarray -> bool
 (** Same as {!mem}, but uses physical equality
    instead of structural equality to compare list elements. *)
 
-(* CR aspectorzabusky: We should add non–in-place sorting *)
+val find_opt : ('a -> bool) -> 'a iarray -> 'a option
+(** [find_opt ~f a] returns the first element of the immutable array [a] that
+    satisfies the predicate [f], or [None] if there is no value that satisfies
+    [f] in the array [a]. *)
+
+val find_map : ('a -> 'b option) -> 'a iarray -> 'b option
+(** [find_map ~f a] applies [f] to the elements of [a] in order, and returns the
+    first result of the form [Some v], or [None] if none exist. *)
+
+(** {1 Arrays of pairs} *)
+
+val split : ('a * 'b) iarray -> 'a iarray * 'b iarray
+(** [split [:(a1,b1); ...; (an,bn):]] is
+    [([:a1; ...; an:], [:b1; ...; bn:])]. *)
+
+val combine : 'a iarray -> 'b iarray -> ('a * 'b) iarray
+(** [combine [:a1; ...; an:] [:b1; ...; bn:]] is [[:(a1,b1); ...; (an,bn):]].
+    Raise [Invalid_argument] if the two immutable iarrays have different
+    lengths. *)
+
+(** {1 Sorting} *)
+
+val sort : ('a -> 'a -> int) -> 'a iarray -> 'a iarray
+(** Sort an immutable array in increasing order according to a comparison
+   function.  The comparison function must return 0 if its arguments
+   compare as equal, a positive integer if the first is greater,
+   and a negative integer if the first is smaller (see below for a
+   complete specification).  For example, {!Stdlib.compare} is
+   a suitable comparison function. The result of calling [sort] is a fresh
+   immutable array containing the same elements as the original sorted in
+   increasing order. Other than this fresh array, [sort] is guaranteed to run in
+   constant heap space and (at most) logarithmic stack space.
+
+   The current implementation uses Heap Sort.  It runs in constant
+   stack space.
+
+   Specification of the comparison function:
+   Let [a] be the immutable array and [cmp] the comparison function.  The
+   following must be true for all [x], [y], [z] in [a] :
+-   [cmp x y] > 0 if and only if [cmp y x] < 0
+-   if [cmp x y] >= 0 and [cmp y z] >= 0 then [cmp x z] >= 0
+
+   The result of [sort], which we'll call [a'], contains the same elements as
+   [a], reordered in such a way that for all i and j valid indices of [a] (or
+   equivalently, of [a']):
+-   [cmp a'.:(i) a'.:(j)] >= 0 if and only if i >= j
+*)
+
+val stable_sort : ('a -> 'a -> int) -> 'a iarray -> 'a iarray
+(** Same as {!sort}, but the sorting algorithm is stable (i.e.
+   elements that compare equal are kept in their original order) and
+   not guaranteed to run in constant heap space.
+
+   The current implementation uses Merge Sort. It uses a temporary array of
+   length [n/2], where [n] is the length of the immutable array.  It is usually
+   faster than the current implementation of {!sort}.
+*)
+
+val fast_sort : ('a -> 'a -> int) -> 'a iarray -> 'a iarray
+(** Same as {!sort} or {!stable_sort}, whichever is
+    faster on typical input. *)
 
 (** {1 Iterators} *)
 
