@@ -302,15 +302,26 @@ let unclosed opening_name opening_loc closing_name closing_loc =
   raise(Syntaxerr.Error(Syntaxerr.Unclosed(make_loc opening_loc, opening_name,
                                            make_loc closing_loc, closing_name)))
 
+(* Normal mutable arrays and immutable arrays are parsed identically, just with
+   different delimiters.  The parsing is done by the [array_exprs] rule, and the
+   [Generic_array] module provides (1) a type representing the possible results,
+   and (2) a function for going from that type to an AST fragment representing
+   an array. *)
 module Generic_array = struct
+  (** The three possible ways to parse an array (writing [[? ... ?]] for either
+      [[| ... |]] or [[: ... :]]): *)
   type t =
     | Literal of expression list
+    (** A plain array literal, [[? x; y; z ?]] *)
     | Opened_literal of open_declaration *
                         Lexing.position *
                         Lexing.position *
                         expression list
+    (** An array literal with a local open, [Module.[? x; y; z ?]] *)
     | Unclosed of (Lexing.position * Lexing.position) *
                   (Lexing.position * Lexing.position)
+    (** Parse error: an unclosed array literal, [\[? x; y; z] with no closing
+        [?\]]. *)
 
   let expression open_ close array = function
     | Literal elts ->
