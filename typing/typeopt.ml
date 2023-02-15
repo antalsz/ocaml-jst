@@ -174,6 +174,7 @@ let value_kind_of_value_layout layout =
   | Immediate -> Pintval
   | Immediate64 ->
     if !Clflags.native_code && Sys.word_size = 64 then Pintval else Pgenval
+  | Float64 -> Pfloatval
   | Any | Void -> assert false
 
 (* Invariant: [value_kind] functions may only be called on types with layout

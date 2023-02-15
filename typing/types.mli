@@ -36,6 +36,9 @@ module Sort : sig
       (** No run time representation at all *)
     | Value
       (** Standard ocaml value representation *)
+    | Float64
+      (** Unboxed 64-bit IEEE 754 floating point numbers (the backing
+          representation of [float]s) *)
 
   (** A sort variable that can be unified during type-checking. *)
   type var
@@ -48,6 +51,7 @@ module Sort : sig
 
   val void : t
   val value : t
+  val float64 : t
 
   (** This checks for equality, and sets any variables to make two sorts
       equal, if possible *)
@@ -60,13 +64,14 @@ type sort = Sort.t
     in the following lattice:
 
     {[
-                any
-              /    \
-           value  void
-             |
+                           any
+                ____________|____________
+               /            |            \
+            value        float64        void
+              |
          immediate64
-             |
-         immediate
+              |
+          immediate
     ]}
 *)
 module Layout : sig
@@ -86,6 +91,7 @@ module Layout : sig
     | Void
     | Immediate64
     | Immediate
+    | Float64
   val string_of_const : const -> string
   val equal_const : const -> const -> bool
 
@@ -106,6 +112,9 @@ module Layout : sig
 
   (** We know for sure that values of types of this layout are always immediate *)
   val immediate : t
+
+  (** Values of types of this layout are raw IEEE 754 floating point numbers. *)
+  val float64 : t
 
   (******************************)
   (* construction *)
@@ -173,10 +182,8 @@ module Layout : sig
   val intersection : t -> t -> (t, Violation.t) Result.t
 
   (** [sub t1 t2] returns [Ok t1] iff [t1] is a sublayout of
-    of [t2].  The current hierarchy is:
-
-    Any > Sort Value > Immediate64 > Immediate
-    Any > Sort Void
+    of [t2].  The hierarchy is represented in the diagram attached to the
+    [Layout] module; for instance, [Any > Sort Value > Immediate64 > Immediate].
 
     Return [Error _] if the coercion is not possible. We return a layout in the
     success case because it sometimes saves time / is convenient to have the

@@ -36,6 +36,7 @@
       - ocaml.void
       - ocaml.immediate
       - ocaml.immediate64
+      - ocaml.float64
 
     {b Warning:} this module is unstable and part of
   {{!Compiler_libs}compiler-libs}.
@@ -135,6 +136,7 @@ type const_layout =
   | Void
   | Immediate64
   | Immediate
+  | Float64
 
 val layout: Parsetree.attributes -> const_layout option
 

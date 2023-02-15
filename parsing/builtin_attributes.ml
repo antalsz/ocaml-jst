@@ -63,6 +63,7 @@ let builtin_attrs =
   ; "warn_on_literal_pattern"; "ocaml.warn_on_literal_pattern"
   ; "immediate"; "ocaml.immediate"
   ; "immediate64"; "ocaml.immediate64"
+  ; "float64"; "ocaml.float64"
   ; "void"; "ocaml.void"
   ; "value"; "ocaml.value"
   ; "any"; "ocaml.any"
@@ -394,6 +395,7 @@ type const_layout =
   | Void
   | Immediate64
   | Immediate
+  | Float64
 
 let layout attrs =
   List.find_map
@@ -402,6 +404,8 @@ let layout attrs =
          (mark_used a.attr_name; Some Immediate)
        | "ocaml.immediate64"|"immediate64" ->
          (mark_used a.attr_name; Some Immediate64)
+       | "ocaml.float64"|"float64" ->
+         (mark_used a.attr_name; Some Float64)
        | "ocaml.void"|"void" ->
          (mark_used a.attr_name; Some Void)
        | "ocaml.value"|"value" ->

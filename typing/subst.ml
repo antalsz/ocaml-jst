@@ -147,6 +147,7 @@ let newpersty desc =
 let tvar_none_any = Tvar { name = None; layout = Layout.any }
 let tvar_none_imm = Tvar { name = None; layout = Layout.immediate }
 let tvar_none_imm64 = Tvar { name = None; layout = Layout.immediate64 }
+let tvar_none_float64 = Tvar { name = None; layout = Layout.float64 }
 let tvar_none_val = Tvar { name = None; layout = Layout.value }
 let tvar_none_void = Tvar { name = None; layout = Layout.void }
 
@@ -154,8 +155,9 @@ let tunivar_none_any = Tunivar { name = None; layout = Layout.any }
 let tunivar_none_imm = Tunivar { name = None; layout = Layout.immediate }
 let tunivar_none_imm64 =
   Tunivar { name = None; layout = Layout.immediate64 }
+let tunivar_none_float64 = Tunivar { name = None; layout = Layout.float64 }
 let tunivar_none_val = Tunivar { name = None; layout = Layout.value }
-let tunivar_none_void = Tunivar { name = None; layout = Layout.void}
+let tunivar_none_void = Tunivar { name = None; layout = Layout.void }
 
 let norm = function
   | (Tvar { name = None; layout }) as t -> begin
@@ -163,6 +165,7 @@ let norm = function
       | Const Any -> tvar_none_any
       | Const Immediate -> tvar_none_imm
       | Const Immediate64 -> tvar_none_imm64
+      | Const Float64 -> tvar_none_float64
       | Const Value -> tvar_none_val
       | Const Void -> tvar_none_void
       | Var _ -> t
@@ -172,6 +175,7 @@ let norm = function
       | Const Any -> tunivar_none_any
       | Const Immediate -> tunivar_none_imm
       | Const Immediate64 -> tunivar_none_imm64
+      | Const Float64 -> tunivar_none_float64
       | Const Value -> tunivar_none_val
       | Const Void -> tunivar_none_void
       | Var _ -> t

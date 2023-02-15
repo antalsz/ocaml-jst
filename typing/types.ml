@@ -23,6 +23,7 @@ module Sort = struct
   type const =
     | Void
     | Value
+    | Float64
 
   type t =
     | Var of var
@@ -31,10 +32,12 @@ module Sort = struct
 
   let void = Const Void
   let value = Const Value
+  let float64 = Const Float64
 
   let of_const = function
     | Void -> void
     | Value -> value
+    | Float64 -> float64
 
   let of_var v = Var v
 
@@ -63,9 +66,9 @@ module Sort = struct
 
   let equal_const_const c1 c2 = match c1, c2 with
     | Void, Void -> true
-    | Void, Value -> false
-    | Value, Void -> false
     | Value, Value -> true
+    | Float64, Float64 -> true
+    | (Void | Value | Float64), _ -> false
 
   let rec equate_var_const v1 c2 = match !v1 with
     | Some s1 -> equate_sort_const s1 c2
@@ -109,6 +112,7 @@ module Layout = struct
   let any = Any
   let void = Sort Sort.void
   let value = Sort Sort.value
+  let float64 = Sort Sort.float64
   let immediate64 = Immediate64
   let immediate = Immediate
 
@@ -118,6 +122,7 @@ module Layout = struct
     | Void
     | Immediate64
     | Immediate
+    | Float64
 
   let string_of_const : const -> _ = function
     | Any -> "any"
@@ -125,6 +130,7 @@ module Layout = struct
     | Void -> "void"
     | Immediate64 -> "immediate64"
     | Immediate -> "immediate"
+    | Float64 -> "float64"
 
   let equal_const (c1 : const) (c2 : const) = match c1, c2 with
     | Any, Any -> true
@@ -132,7 +138,8 @@ module Layout = struct
     | Immediate, Immediate -> true
     | Void, Void -> true
     | Value, Value -> true
-    | (Any | Immediate64 | Immediate | Void | Value), _ -> false
+    | Float64, Float64 -> true
+    | (Any | Immediate64 | Immediate | Void | Value | Float64), _ -> false
 
   (******************************)
   (* construction *)
@@ -142,9 +149,10 @@ module Layout = struct
   let of_sort s = Sort s
 
   let of_const : const -> t = function
-    | Any -> Any
-    | Immediate -> Immediate
-    | Immediate64 -> Immediate64
+    | Any -> any
+    | Immediate -> immediate
+    | Immediate64 -> immediate64
+    | Float64 -> float64
     | Value -> value
     | Void -> void
 
@@ -172,6 +180,7 @@ module Layout = struct
          different constructors on the left than on the right *)
       | Const Void -> Const Void
       | Const Value -> Const Value
+      | Const Float64 -> Const Float64
       | Var v -> Var v
     end
 
@@ -187,6 +196,7 @@ module Layout = struct
     match get l with
     | Const Void -> Sort.void
     | Const (Value | Immediate | Immediate64) -> Sort.value
+    | Const Float64 -> Sort.float64
     | Const Any -> Misc.fatal_error "Layout.sort_of_layout"
     | Var v -> Sort.of_var v
 
@@ -727,7 +737,7 @@ let all_void layouts =
   Array.for_all (fun l ->
     match Layout.get l with
     | Const Void -> true
-    | Const (Any | Immediate | Immediate64 | Value) | Var _ -> false)
+    | Const (Any | Immediate | Immediate64 | Value | Float64) | Var _ -> false)
     layouts
 
 let layout_bound_of_record_representation : record_representation -> _ =
