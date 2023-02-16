@@ -742,6 +742,7 @@ val kind_abstract : layout:layout -> ('a,'b) type_kind
 val kind_abstract_value : ('a,'b) type_kind
 val kind_abstract_immediate : ('a,'b) type_kind
 val kind_abstract_any : ('a,'b) type_kind
+val kind_abstract_const : Layout.const -> ('a,'b) type_kind
 val decl_is_abstract : type_declaration -> bool
 
 (** Type kinds provide an upper bound on layouts of a type (which is precise if

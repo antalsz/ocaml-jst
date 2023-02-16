@@ -45,6 +45,7 @@ and ident_lazy_t = ident_create "lazy_t"
 and ident_string = ident_create "string"
 and ident_extension_constructor = ident_create "extension_constructor"
 and ident_floatarray = ident_create "floatarray"
+let ident_unboxed_float = ident_create "ufloat"
 
 let path_int = Pident ident_int
 and path_char = Pident ident_char
@@ -232,6 +233,7 @@ let common_initial_env add_type add_extension empty_env =
   |> add_type ident_string
   |> add_type ident_unit
        ~kind:(variant [cstr ident_void []] [| [| |] |])
+  |> add_type ident_unboxed_float ~kind:(Types.kind_abstract_const Float64)
   (* Predefined exceptions - alphabetical order *)
   |> add_extension ident_assert_failure
        [newgenty (Ttuple[type_string; type_int; type_int])]

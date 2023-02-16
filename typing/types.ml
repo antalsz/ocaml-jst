@@ -727,6 +727,7 @@ let kind_abstract ~layout = Type_abstract { layout }
 let kind_abstract_value = kind_abstract ~layout:Layout.value
 let kind_abstract_immediate = kind_abstract ~layout:Layout.immediate
 let kind_abstract_any = kind_abstract ~layout:Layout.any
+let kind_abstract_const sort = kind_abstract ~layout:(Layout.of_const sort)
 
 let decl_is_abstract decl =
   match decl.type_kind with
