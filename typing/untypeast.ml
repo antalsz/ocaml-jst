@@ -138,6 +138,7 @@ let constant = function
   | Const_int64 i -> Pconst_integer (Int64.to_string i, Some 'L')
   | Const_nativeint i -> Pconst_integer (Nativeint.to_string i, Some 'n')
   | Const_float f -> Pconst_float (f,None)
+  | Const_ufloat f -> Pconst_float (f, Some '#')
 
 let attribute sub a = {
     attr_name = map_loc sub a.attr_name;

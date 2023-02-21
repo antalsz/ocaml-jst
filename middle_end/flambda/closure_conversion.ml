@@ -156,6 +156,11 @@ let rec declare_const t (const : Lambda.structured_constant)
              List.map (fun c -> fst (declare_const t c)) consts)
     in
     register_const t const Names.const_block
+  | Const_base (Const_ufloat c) ->
+    (* XXX ASZ: These are just regular floats for now *)
+    register_const t
+      (Allocated_const (Float (float_of_string c)))
+      Names.const_float
 
 let close_const t (const : Lambda.structured_constant)
       : Flambda.named * Internal_variable_names.t =

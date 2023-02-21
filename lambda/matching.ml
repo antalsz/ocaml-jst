@@ -1147,6 +1147,8 @@ let can_group discr pat =
   | Constant (Const_int64 _), Constant (Const_int64 _)
   | Constant (Const_nativeint _), Constant (Const_nativeint _) ->
       true
+  | Constant (Const_ufloat _), Constant (Const_ufloat _) ->
+      true
   | Construct { cstr_tag = Extension _ as discr_tag }, Construct pat_cstr
     ->
       (* Extension constructors with distinct names may be equal thanks to
@@ -1166,7 +1168,7 @@ let can_group discr pat =
       ( Any
       | Constant
           ( Const_int _ | Const_char _ | Const_string _ | Const_float _
-          | Const_int32 _ | Const_int64 _ | Const_nativeint _ )
+          | Const_int32 _ | Const_int64 _ | Const_nativeint _ | Const_ufloat _ )
       | Construct _ | Tuple _ | Record _ | Array _ | Variant _ | Lazy ) ) ->
       false
 
@@ -2797,6 +2799,11 @@ let combine_constant value_kind loc arg cst partial ctx def
           (Pbintcomp (Pnativeint, Cne))
           (Pbintcomp (Pnativeint, Clt))
           arg const_lambda_list
+    | Const_ufloat _ ->
+        (* XXX ASZ: These are just regular floats for now *)
+        make_test_sequence value_kind loc fail (Pfloatcomp CFneq)
+          (Pfloatcomp CFlt) arg
+          const_lambda_list
   in
   (lambda1, Jumps.union local_jumps total)
 

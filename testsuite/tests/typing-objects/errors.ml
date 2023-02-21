@@ -37,10 +37,10 @@ Error: The class type object method x : 'a * float end
 
 let foo = 42#m;;
 [%%expect{|
-Line 1, characters 10-12:
+Line 1, characters 10-13:
 1 | let foo = 42#m;;
-              ^^
-Error: This expression is not an object; it has type int
+              ^^^
+Error: Unknown modifier '#' for literal 42#
 |}]
 
 let foo = object (self) method foo = self#bar end;;

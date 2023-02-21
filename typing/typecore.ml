@@ -441,6 +441,7 @@ let type_constant = function
   | Const_int32 _ -> instance Predef.type_int32
   | Const_int64 _ -> instance Predef.type_int64
   | Const_nativeint _ -> instance Predef.type_nativeint
+  | Const_ufloat _ -> instance Predef.type_unboxed_float
 
 let constant : Parsetree.constant -> (Asttypes.constant, error) result =
   function
@@ -467,7 +468,8 @@ let constant : Parsetree.constant -> (Asttypes.constant, error) result =
   | Pconst_integer (i,Some c) -> Error (Unknown_literal (i, c))
   | Pconst_char c -> Ok (Const_char c)
   | Pconst_string (s,loc,d) -> Ok (Const_string (s,loc,d))
-  | Pconst_float (f,None)-> Ok (Const_float f)
+  | Pconst_float (f,None) -> Ok (Const_float f)
+  | Pconst_float (f,Some '#') -> Ok (Const_ufloat f)
   | Pconst_float (f,Some c) -> Error (Unknown_literal (f, c))
 
 let constant_or_raise env loc cst =

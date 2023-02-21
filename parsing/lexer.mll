@@ -385,7 +385,7 @@ let hex_float_literal =
   ['0'-'9' 'A'-'F' 'a'-'f'] ['0'-'9' 'A'-'F' 'a'-'f' '_']*
   ('.' ['0'-'9' 'A'-'F' 'a'-'f' '_']* )?
   (['p' 'P'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']* )?
-let literal_modifier = ['G'-'Z' 'g'-'z']
+let literal_modifier = ['G'-'Z' 'g'-'z' '#']
 
 rule token = parse
   | ('\\' as bs) newline {

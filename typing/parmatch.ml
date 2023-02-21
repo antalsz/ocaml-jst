@@ -131,13 +131,15 @@ let all_coherent column =
         | Const_nativeint _, Const_nativeint _
         | Const_float _, Const_float _
         | Const_string _, Const_string _ -> true
+        | Const_ufloat _, Const_ufloat _ -> true
         | ( Const_char _
           | Const_int _
           | Const_int32 _
           | Const_int64 _
           | Const_nativeint _
           | Const_float _
-          | Const_string _), _ -> false
+          | Const_string _
+          | Const_ufloat _), _ -> false
       end
     | Tuple l1, Tuple l2 -> l1 = l2
     | Record (lbl1 :: _), Record (lbl2 :: _) ->
@@ -243,6 +245,9 @@ let const_compare x y =
       Stdlib.compare (float_of_string f1) (float_of_string f2)
   | Const_string (s1, _, _), Const_string (s2, _, _) ->
       String.compare s1 s2
+  | Const_ufloat f1, Const_ufloat f2 ->
+      (* XXX ASZ: These are regular floats for now *)
+      Stdlib.compare (float_of_string f1) (float_of_string f2)
   | (Const_int _
     |Const_char _
     |Const_string (_, _, _)
@@ -250,6 +255,7 @@ let const_compare x y =
     |Const_int32 _
     |Const_int64 _
     |Const_nativeint _
+    |Const_ufloat _
     ), _ -> Stdlib.compare x y
 
 let records_args l1 l2 =
@@ -2160,7 +2166,8 @@ let inactive ~partial pat =
             match c with
             | Const_string _ -> Config.safe_string
             | Const_int _ | Const_char _ | Const_float _
-            | Const_int32 _ | Const_int64 _ | Const_nativeint _ -> true
+            | Const_int32 _ | Const_int64 _ | Const_nativeint _
+            | Const_ufloat _ -> true
           end
         | Tpat_tuple ps | Tpat_construct (_, _, ps, _) ->
             List.for_all (fun p -> loop p) ps

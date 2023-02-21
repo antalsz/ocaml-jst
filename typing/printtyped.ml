@@ -72,6 +72,7 @@ let fmt_constant f x =
   | Const_int32 (i) -> fprintf f "Const_int32 %ld" i;
   | Const_int64 (i) -> fprintf f "Const_int64 %Ld" i;
   | Const_nativeint (i) -> fprintf f "Const_nativeint %nd" i;
+  | Const_ufloat (s) -> fprintf f "Const_ufloat %s" s;
 ;;
 
 let fmt_mutable_flag f x =

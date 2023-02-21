@@ -995,6 +995,8 @@ let rec close ({ backend; fenv; cenv ; mutable_vars } as env) lam =
         | Const_base(Const_int32 x) -> str (Uconst_int32 x)
         | Const_base(Const_int64 x) -> str (Uconst_int64 x)
         | Const_base(Const_nativeint x) -> str (Uconst_nativeint x)
+        | Const_base(Const_ufloat x) -> str (Uconst_float (float_of_string x))
+        (* XXX ASZ: These are just regular floats for now *)
       in
       make_const (transl cst)
   | Lfunction _ as funct ->
