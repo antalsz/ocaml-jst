@@ -26,8 +26,10 @@ open Ctype
 
 exception Already_bound
 
-type value_loc =
+type layout_loc =
     Fun_arg | Fun_ret | Tuple | Poly_variant | Package_constraint | Object_field
+
+type required_layout = Layout_value | Concrete_layout
 
 type error =
     Unbound_type_variable of string
@@ -51,8 +53,12 @@ type error =
   | Not_an_object of type_expr
   | Unsupported_extension of Clflags.Extension.t
   | Polymorphic_optional_param
-  | Non_value of
-      {vloc : value_loc; typ : type_expr; err : Layout.Violation.t}
+  | Invalid_layout of
+      { required : required_layout
+      ; lloc : layout_loc
+      ; typ : type_expr
+      ; err : Layout.Violation.t
+      }
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error
@@ -310,20 +316,32 @@ and transl_type_aux env policy mode styp =
           let arg_mode = Alloc_mode.of_const arg_mode in
           let ret_mode = Alloc_mode.of_const ret_mode in
           let arrow_desc = (l, arg_mode, ret_mode) in
-          (* Layouts: For now, we require function arguments and returns to have
-             layout value.  See comment in [Ctype.filter_arrow].  *)
-          begin match
-            constrain_type_layout env arg_ty Layout.value,
-            constrain_type_layout env ret_cty.ctyp_type Layout.value
-          with
+          (* Layouts: Function arguments must have a concrete layout, i.e. a sort;
+             function returns can be anything.  There is also a check in the translation
+             to lambda (XXX ASZ: where?) that ensures arguments and returns are not
+             [void], which we will eventually remove.  See the comment in
+             [Ctype.filter_arrow]. *)
+          (* XXX ASZ: We need to loosen this so that return types can be
+             [Layout.any], which we will do by dropping the [type_sort env
+             ret_cty.ctyp_typ] check (and droppping [Fun_ret] from
+             [layout_loc]), but doing this broke a weird case of GADT inference.
+             This is the parsimonious route to getting functions on [#float]
+             without breaking everything. *)
+          begin match type_sort env arg_ty, type_sort env ret_cty.ctyp_type with
           | Ok _, Ok _ -> ()
           | Error e, _ ->
             raise (Error(arg.ptyp_loc, env,
-                         Non_value {vloc = Fun_arg; err = e; typ = arg_ty}))
+                         Invalid_layout { required = Concrete_layout
+                                        ; lloc = Fun_arg
+                                        ; err = e
+                                        ; typ = arg_ty
+                                        }))
           | _, Error e ->
-            raise (Error(ret.ptyp_loc, env,
-                         Non_value
-                           {vloc = Fun_ret; err = e; typ = ret_cty.ctyp_type}))
+            raise (Error(arg.ptyp_loc, env,
+                         Invalid_layout { required = Concrete_layout
+                                        ; lloc = Fun_ret
+                                        ; err = e
+                                        ; typ = ret_cty.ctyp_type }))
           end;
           let ty =
             newty (Tarrow(arrow_desc, arg_ty, ret_cty.ctyp_type, commu_ok))
@@ -340,7 +358,11 @@ and transl_type_aux env policy mode styp =
       | Ok _ -> ()
       | Error e ->
         raise (Error(ctyp_loc, env,
-                     Non_value {vloc = Tuple; err = e; typ = ctyp_type})))
+                     Invalid_layout { required = Layout_value
+                                    ; lloc = Tuple
+                                    ; err = e
+                                    ; typ = ctyp_type
+                                    })))
       ctys;
     let ty = newty (Ttuple (List.map (fun ctyp -> ctyp.ctyp_type) ctys)) in
     ctyp (Ttyp_tuple ctys) ty
@@ -527,8 +549,11 @@ and transl_type_aux env policy mode styp =
               | Ok _ -> ()
               | Error e ->
                 raise (Error(ctyp_loc, env,
-                             Non_value {vloc = Poly_variant; err = e;
-                                        typ = ctyp_type})))
+                             Invalid_layout { required = Layout_value
+                                            ; lloc = Poly_variant
+                                            ; err = e
+                                            ; typ = ctyp_type
+                                            })))
               tl;
             let f = match present with
               Some present when not (List.mem l.txt present) ->
@@ -652,7 +677,11 @@ and transl_type_aux env policy mode styp =
         | Ok _ -> ()
         | Error e ->
           raise (Error(s.loc,env,
-                       Non_value {vloc=Package_constraint; typ=ty; err=e})))
+                       Invalid_layout { required = Layout_value
+                                      ; lloc = Package_constraint
+                                      ; typ = ty
+                                      ; err = e
+                                      })))
         ptys;
       let path = !transl_modtype_longident styp.ptyp_loc env p.txt in
       let ty = newty (Tpackage (path,
@@ -692,8 +721,12 @@ and transl_fields env policy o fields =
           | Ok _ -> ()
           | Error e ->
             raise (Error(of_loc, env,
-                         Non_value {vloc = Object_field; err = e;
-                                    typ = ty1.ctyp_type}))
+                         Invalid_layout
+                           { required = Layout_value
+                           ; lloc = Object_field
+                           ; err = e
+                           ; typ = ty1.ctyp_type
+                           }))
         end;
         let field = OTtag (s, ty1) in
         add_typed_field ty1.ctyp_loc s.txt ty1.ctyp_type;
@@ -973,18 +1006,23 @@ let report_error env ppf = function
                    To enable it, pass the '-extension %s' flag@]" ext ext
   | Polymorphic_optional_param ->
       fprintf ppf "@[Optional parameters cannot be polymorphic@]"
-  | Non_value {vloc; typ; err} ->
-    let s =
-      match vloc with
-      | Fun_arg -> "Function argument"
-      | Fun_ret -> "Function return"
-      | Tuple -> "Tuple element"
-      | Poly_variant -> "Polymorpic variant constructor argument"
-      | Package_constraint -> "Signature package constraint"
-      | Object_field -> "Object field"
-    in
-    fprintf ppf "@[%s types must have layout value.@ \ %a@]"
-      s (Layout.Violation.report_with_offender
+  | Invalid_layout {required; lloc; typ; err} ->
+      let lloc = match lloc with
+        | Fun_arg -> "Function argument"
+        | Fun_ret -> "Function return"
+        | Tuple -> "Tuple element"
+        | Poly_variant -> "Polymorpic variant constructor argument"
+        | Package_constraint -> "Signature package constraint"
+        | Object_field -> "Object field"
+      in
+      let should_have_had = match required with
+        | Layout_value -> "layout value"
+        | Concrete_layout -> "a concrete layout"
+      in
+      fprintf ppf "@[%s types must have %s.@ \ %a@]"
+        lloc
+        should_have_had
+        (Layout.Violation.report_with_offender
            ~offender:(fun ppf -> Printtyp.type_expr ppf typ)) err
 
 let () =

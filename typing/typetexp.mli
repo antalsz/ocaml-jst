@@ -59,8 +59,10 @@ val widen: variable_context -> unit
 
 exception Already_bound
 
-type value_loc =
+type layout_loc =
     Fun_arg | Fun_ret | Tuple | Poly_variant | Package_constraint | Object_field
+
+type required_layout = Layout_value | Concrete_layout
 
 type error =
     Unbound_type_variable of string
@@ -84,8 +86,12 @@ type error =
   | Not_an_object of type_expr
   | Unsupported_extension of Clflags.Extension.t
   | Polymorphic_optional_param
-  | Non_value of
-      {vloc : value_loc; typ : type_expr; err : Layout.Violation.t}
+  | Invalid_layout of
+      { required : required_layout
+      ; lloc : layout_loc
+      ; typ : type_expr
+      ; err : Layout.Violation.t
+      }
 
 exception Error of Location.t * Env.t * error
 

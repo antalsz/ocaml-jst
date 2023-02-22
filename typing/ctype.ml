@@ -3714,15 +3714,16 @@ exception Filter_arrow_failed of filter_arrow_failure
 let filter_arrow env t l ~force_tpoly =
   let function_type level =
     (* Layouts: This is one of two primary places where we are restricting
-       function arguments / returns to have layout value.  This one handles
+       function arguments to be of a concrete layout.  This one handles
        function types that arise from inference, and the check in
        [Typetexp.transl_type_aux] handles function types explicitly written in
-       the source program.  When we decide to drop that restriction, we can
-       probably allow [t1] to be any sort, and [t2] to be just any. *)
+       the source program.  There is also a check in the translation to lambda
+       (XXX ASZ: where?) that ensures arguments and returns are not [void],
+       which we will eventually remove. *)
     let t1 =
       if not force_tpoly then begin
         assert (not (is_optional l));
-        newvar2 level Layout.value
+        newvar2 level (Layout.of_new_sort_var ())
       end else begin
         let t1 =
           if is_optional l then
@@ -3730,12 +3731,16 @@ let filter_arrow env t l ~force_tpoly =
               (Tconstr(Predef.path_option,[newvar2 level Layout.value],
                        ref Mnil))
           else
-            newvar2 level Layout.value
+            newvar2 level (Layout.of_new_sort_var ())
         in
         newty2 ~level (Tpoly(t1, []))
       end
     in
-    let t2 = newvar2 level Layout.value in
+    (* XXX ASZ: We need to loosen this from [Layout.of_new_sort_var ()] to
+       [Layout.any], but this broke a weird case of GADT inference.  This is the
+       parsimonious route to getting functions on [#float] without breaking
+       everything. *)
+    let t2 = newvar2 level (Layout.of_new_sort_var ()) in
     let marg = Alloc_mode.newvar () in
     let mret = Alloc_mode.newvar () in
     let t' = newty2 ~level (Tarrow ((l,marg,mret), t1, t2, commu_ok)) in
