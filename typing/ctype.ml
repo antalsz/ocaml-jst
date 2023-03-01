@@ -713,7 +713,18 @@ let rec generalize ty =
 
 let generalize ty =
   simple_abbrevs := Mnil;
-  generalize ty
+  generalize ty(* ;
+   * let visited = ref TypeSet.empty in
+   * let rec default_to_value ty =
+   *   if not (TypeSet.mem ty !visited) then begin
+   *     visited := TypeSet.add ty !visited;
+   *     match get_desc ty with
+   *     | Tvar    tv -> Layout.default_to_value tv.layout
+   *     | Tunivar tu -> Layout.default_to_value tu.layout
+   *     | _          -> iter_type_expr default_to_value ty
+   *   end
+   * in
+   * default_to_value ty *)
 
 (* Generalize the structure and lower the variables *)
 

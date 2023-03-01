@@ -175,7 +175,8 @@ let value_kind_of_value_layout layout =
   | Immediate64 ->
     if !Clflags.native_code && Sys.word_size = 64 then Pintval else Pgenval
   | Float64 -> Pfloatval
-  | Any | Void -> assert false
+  | Any ->  prerr_endline "\x1b[1;33;104many in value_kind_of_value_layout\x1b[0m"; assert false
+  | Void -> prerr_endline "\x1b[1;33;104mvoid in value_kind_of_value_layout\x1b[0m"; assert false
 
 (* Invariant: [value_kind] functions may only be called on types with layout
    value. *)
@@ -188,7 +189,7 @@ let rec value_kind env ~visited ~depth ~num_nodes_visited ty
   in
   (* CJC XXX remove this check once all of jane builds *)
   begin match Ctype.(check_type_layout env (correct_levels ty) Layout.void) with
-  | Ok _ -> assert false
+  | Ok _ -> prerr_endline "\x1b[1;33;104mvoid in value_kind\x1b[0m" (* assert false *)
   | _ -> ()
   end;
   let scty = scrape_ty env ty in

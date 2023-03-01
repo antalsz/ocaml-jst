@@ -32,41 +32,29 @@ end;;
 Line 2, characters 10-15:
 2 |   val f : t_any -> int
               ^^^^^
-Error: Function argument types must have layout value.
-        t_any has layout any, which is not a sublayout of value.
+Error: Function argument types must have a concrete layout.
+        t_any has layout any, which is not a sublayout of <sort variable>.
 |}]
 
 module type S = sig
   val f : int -> t_void
 end;;
 [%%expect {|
-Line 2, characters 17-23:
-2 |   val f : int -> t_void
-                     ^^^^^^
-Error: Function return types must have layout value.
-        t_void has layout void, which is not a sublayout of value.
+module type S = sig val f : int -> t_void end
 |}];;
 
 module type S = sig
   val f : void_unboxed_record -> int
 end
 [%%expect {|
-Line 2, characters 10-29:
-2 |   val f : void_unboxed_record -> int
-              ^^^^^^^^^^^^^^^^^^^
-Error: Function argument types must have layout value.
-        void_unboxed_record has layout void, which is not a sublayout of value.
+module type S = sig val f : void_unboxed_record -> int end
 |}];;
 
 module type S = sig
   val f : int -> void_unboxed_record
 end
 [%%expect {|
-Line 2, characters 17-36:
-2 |   val f : int -> void_unboxed_record
-                     ^^^^^^^^^^^^^^^^^^^
-Error: Function return types must have layout value.
-        void_unboxed_record has layout void, which is not a sublayout of value.
+module type S = sig val f : int -> void_unboxed_record end
 |}];;
 
 module type S = sig
@@ -76,11 +64,7 @@ module type S = sig
   and r = t
 end;;
 [%%expect{|
-Line 5, characters 2-11:
-5 |   and r = t
-      ^^^^^^^^^
-Error:
-       r has layout void, which is not a sublayout of value.
+module type S = sig type t [@@void] type s = r -> int and r = t end
 |}]
 
 module type S = sig
@@ -89,12 +73,8 @@ module type S = sig
   type 'a s = 'a -> int constraint 'a = t
 end;;
 [%%expect{|
-Line 4, characters 35-41:
-4 |   type 'a s = 'a -> int constraint 'a = t
-                                       ^^^^^^
-Error: The type constraints are not consistent.
-       Type 'a is not compatible with type t
-       t has layout void, which is not a sublayout of value.
+module type S =
+  sig type t [@@void] type 'a s = 'a -> int constraint 'a = t end
 |}]
 
 (* CJC XXX errors: the F1 and F1' errors should ideally mention that the layout
@@ -103,24 +83,16 @@ module F1 (X : sig val x : t_void end) = struct
   let f () = X.x
 end;;
 [%%expect{|
-Line 2, characters 13-16:
-2 |   let f () = X.x
-                 ^^^
-Error: This expression has type t_void but an expression was expected of type
-         'a
-       t_void has layout void, which is not a sublayout of value.
+Uncaught exception: File "typing/typeopt.ml", line 179, characters 85-91: Assertion failed
+
 |}];;
 
 module F1 (X : sig val f : void_record -> unit end) = struct
   let g z = X.f { vr_void = z; vr_int = 42 }
 end;;
 [%%expect{|
-Line 2, characters 28-29:
-2 |   let g z = X.f { vr_void = z; vr_int = 42 }
-                                ^
-Error: This expression has type 'a but an expression was expected of type
-         t_void
-       t_void has layout void, which is not a sublayout of value.
+Uncaught exception: File "typing/typeopt.ml", line 179, characters 85-91: Assertion failed
+
 |}];;
 
 (*********************************************)
@@ -306,17 +278,8 @@ let g (x : 'a void4) =
   match x with
   | Void4 x -> x;;
 [%%expect{|
-Line 3, characters 15-16:
-3 |   | Void4 x -> x;;
-                   ^
-Error: This expression has type 'a but an expression was expected of type 'b
-       'a has layout value, which does not overlap with void.
-|}, Principal{|
-Lines 2-3, characters 2-16:
-2 | ..match x with
-3 |   | Void4 x -> x..
-Error: This expression has type 'a but an expression was expected of type 'b
-       'a has layout value, which does not overlap with void.
+>> Fatal error: x unbound at toplevel
+Exception: Misc.Fatal_error.
 |}]
 (* CJC XXX errors: understand what's going on with Principal mode here (and improve
    error messages generally *)

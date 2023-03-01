@@ -31,11 +31,17 @@ File "w47_inline.ml", line 23, characters 15-22:
                     ^^^^^^^
 Warning 47 [attribute-payload]: illegal payload for attribute 'inlined'.
 It must be either 'never', 'always', 'hint' or empty
+[1;33;104mvoid in value_kind[0m
+[1;33;104mvoid in value_kind[0m
+[1;33;104mvoid in value_kind[0m
 File "w47_inline.ml", line 31, characters 7-12:
 31 |   let[@local malformed] f3 x = x (* bad payload *) in
             ^^^^^
 Warning 47 [attribute-payload]: illegal payload for attribute 'local'.
 It must be either 'never', 'always', 'maybe' or empty
+[1;33;104mvoid in value_kind[0m
+[1;33;104mvoid in value_kind[0m
+[1;33;104mvoid in value_kind[0m
 File "w47_inline.ml", line 32, characters 17-26:
 32 |   let[@local] f4 x = 2 * x (* not local *) in
                       ^^^^^^^^^
