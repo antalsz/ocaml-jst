@@ -231,7 +231,8 @@ let char_of_int n =
 
 (* Array operations -- more in modules Array and Iarray *)
 
-external ( .:() ) : 'a iarray -> int -> 'a = "%array_safe_get"
+external ( .:() ) : ('a iarray[@local_opt]) -> int -> ('a[@local_opt]) =
+  "%array_safe_get"
 
 (* Unit operations *)
 

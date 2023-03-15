@@ -729,7 +729,8 @@ val char_of_int : int -> char
    More array operations are provided in modules {!Array} and {!Iarray}.
 *)
 
-external ( .:() ) : 'a iarray -> int -> 'a = "%array_safe_get"
+external ( .:() ) : ('a iarray[@local_opt]) -> int -> ('a[@local_opt]) =
+  "%array_safe_get"
 (** [a.:(n)] returns the element number [n] of immutable array [a].
    The first element has number 0.
    The last element has number [length a - 1].
