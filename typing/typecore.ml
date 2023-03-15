@@ -4446,7 +4446,6 @@ and type_expect_
         ~expected_mode
         ~ty_expected
         ~explanation
-        ~type_:Predef.type_array
         ~mutability:Mutable
         ~attributes:sexp.pexp_attributes
         sargl
@@ -6879,18 +6878,20 @@ and type_generic_array
       ~expected_mode
       ~ty_expected
       ~explanation
-      ~type_
       ~mutability
       ~attributes
       sargl
   =
+  let type_, base_argument_mode = match mutability with
+    | Mutable -> Predef.type_array, mode_default Value_mode.global
+    | Immutable -> Predef.type_iarray, mode_subcomponent expected_mode
+  in
   let alloc_mode = register_allocation expected_mode in
   let ty = newgenvar() in
   let to_unify = type_ ty in
   with_explanation explanation (fun () ->
     unify_exp_types loc env to_unify (generic_instance ty_expected));
-  let argument_mode = mode_default Value_mode.global in
-  let argument_mode = expect_mode_cross env ty argument_mode in
+  let argument_mode = expect_mode_cross env ty base_argument_mode in
   let argl =
     List.map
       (fun sarg -> type_expect env argument_mode sarg (mk_expected ty))
@@ -7164,7 +7165,6 @@ and type_immutable_array
         ~expected_mode
         ~ty_expected
         ~explanation
-        ~type_:Predef.type_iarray
         ~mutability:Immutable
         ~attributes
         elts
