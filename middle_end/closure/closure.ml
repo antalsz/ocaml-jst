@@ -1326,6 +1326,9 @@ let rec close ({ backend; fenv; cenv ; mutable_vars; kinds; catch_env } as env) 
            Pobj_magic),
           [arg], _loc) ->
       close env arg
+  | Lprim(Pempty_iarray, [arg], _loc) ->
+      let expr, approx = make_const_ref (Uconst_block(0, [])) in
+      Usequence(fst (close env arg), expr), approx
   | Lprim(Pgetglobal cu, [], loc) ->
       let dbg = Debuginfo.from_location loc in
       check_constant_result (getglobal dbg cu)

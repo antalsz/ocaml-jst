@@ -242,6 +242,7 @@ type primitive =
   (* Jane Street extensions *)
   | Parray_to_iarray
   | Parray_of_iarray
+  | Pempty_iarray
 
 and integer_comparison =
     Ceq | Cne | Clt | Cgt | Cle | Cge
@@ -1357,6 +1358,7 @@ let primitive_may_allocate : primitive -> alloc_mode option = function
   | Pprobe_is_enabled _ -> None
   | Pobj_dup -> Some alloc_heap
   | Pobj_magic -> None
+  | Pempty_iarray -> None
 
 let constant_layout = function
   | Const_int _ | Const_char _ -> Pvalue Pintval
