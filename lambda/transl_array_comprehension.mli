@@ -26,5 +26,6 @@ val comprehension
   -> scopes:scopes
   -> loc:scoped_location
   -> array_kind:array_kind
+  -> alloc_mode:Types.alloc_mode
   -> comprehension
   -> lambda

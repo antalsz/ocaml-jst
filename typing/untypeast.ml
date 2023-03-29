@@ -507,10 +507,10 @@ let expression sub exp =
               ~loc
               (Iaexp_immutable_array plist)
       end
-    | Texp_list_comprehension comp ->
+    | Texp_list_comprehension (comp, _) ->
         comprehension
           ~loc sub (fun comp -> Cexp_list_comprehension comp) comp
-    | Texp_array_comprehension (amut, comp) ->
+    | Texp_array_comprehension (amut, comp, _) ->
         comprehension
           ~loc sub (fun comp -> Cexp_array_comprehension (amut, comp)) comp
     | Texp_ifthenelse (exp1, exp2, expo) ->

@@ -577,18 +577,17 @@ and transl_exp0 ~in_new_scope ~scopes e =
       with Not_constant ->
         makearray lambda_arr_mut
       end
-  | Texp_list_comprehension comp ->
+  | Texp_list_comprehension (comp, _alloc_mode) ->
       let loc = of_location ~scopes e.exp_loc in
       Transl_list_comprehension.comprehension
         ~transl_exp ~scopes ~loc comp
-  | Texp_array_comprehension (_amut, comp) ->
-      (* We can ignore mutability here since we've already checked in in the
-         type checker; both mutable and immutable arrays are created the same
-         way *)
+  | Texp_array_comprehension (_amut, comp, alloc_mode) ->
+      (* We can ignore mutability here since we've already checked in the type
+         checker; both mutable and immutable arrays are created the same way *)
       let loc = of_location ~scopes e.exp_loc in
       let array_kind = Typeopt.array_kind e in
       Transl_array_comprehension.comprehension
-        ~transl_exp ~scopes ~loc ~array_kind comp
+        ~transl_exp ~scopes ~loc ~array_kind ~alloc_mode comp
   | Texp_ifthenelse(cond, ifso, Some ifnot) ->
       Lifthenelse(transl_exp ~scopes cond,
                   event_before ~scopes ifso (transl_exp ~scopes ifso),

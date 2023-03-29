@@ -3785,6 +3785,20 @@ let with_explanation explanation f =
         let err = Expr_type_clash(err', Some explanation, exp') in
         raise (Error (loc', env', err))
 
+type array_info =
+  { array_type : type_expr -> type_expr
+  ; alloc_mode : alloc_mode
+  ; base_element_mode : expected_mode
+  }
+
+let array_info ~mutability ~expected_mode : array_info =
+  let alloc_mode = register_allocation expected_mode in
+  let array_type, base_element_mode = match mutability with
+    | Mutable -> Predef.type_array, mode_default Value_mode.global
+    | Immutable -> Predef.type_iarray, mode_subcomponent expected_mode
+  in
+  { array_type; alloc_mode; base_element_mode }
+
 let rec type_exp ?recarg env expected_mode sexp =
   (* We now delegate everything to type_expect *)
   type_expect ?recarg env expected_mode sexp (mk_expected (newvar ()))
@@ -6882,19 +6896,17 @@ and type_generic_array
       ~attributes
       sargl
   =
-  let type_, base_argument_mode = match mutability with
-    | Mutable -> Predef.type_array, mode_default Value_mode.global
-    | Immutable -> Predef.type_iarray, mode_subcomponent expected_mode
+  let { array_type; alloc_mode; base_element_mode } =
+    array_info ~mutability ~expected_mode
   in
-  let alloc_mode = register_allocation expected_mode in
   let ty = newgenvar() in
-  let to_unify = type_ ty in
+  let to_unify = array_type ty in
   with_explanation explanation (fun () ->
     unify_exp_types loc env to_unify (generic_instance ty_expected));
-  let argument_mode = expect_mode_cross env ty base_argument_mode in
+  let element_mode = expect_mode_cross env ty base_element_mode in
   let argl =
     List.map
-      (fun sarg -> type_expect env argument_mode sarg (mk_expected ty))
+      (fun sarg -> type_expect env element_mode sarg (mk_expected ty))
       sargl
   in
   re {
@@ -6990,33 +7002,43 @@ and type_expect_extension
    this comment by its incipit (the initial question, right at the start). *)
 
 and type_comprehension_expr
-      ~loc ~env ~expected_mode:_ ~ty_expected ~explanation:_ ~attributes cexpr =
+      ~loc ~env ~expected_mode ~ty_expected ~explanation:_ ~attributes cexpr =
   let open Extensions.Comprehensions in
   (* - [comprehension_type]:
          For printing nicer error messages.
      - [container_type]:
          For type checking [for]-[in] iterators and the type of the whole
          comprehension.
+     - [base_element_mode]:
+         For mode checking the contents of the comprehension; needs to be
+         checked for mode-crossing
      - [make_texp]:
          For building the final typedtree node containing the translated
          comprehension.
      - [{body = sbody; clauses}]:
          The actual comprehension to be translated. *)
-  let comprehension_type, container_type, make_texp, {body = sbody; clauses} =
+  let comprehension_type,
+      container_type,
+      base_element_mode,
+      make_texp,
+      {body = sbody; clauses}
+    =
     match cexpr with
     | Cexp_list_comprehension comp ->
+        let alloc_mode = register_allocation expected_mode in
         List_comprehension,
         Predef.type_list,
-        (fun tcomp -> Texp_list_comprehension tcomp),
+        mode_subcomponent expected_mode,
+        (fun tcomp -> Texp_list_comprehension (tcomp, alloc_mode)),
         comp
     | Cexp_array_comprehension (amut, comp) ->
-        let container_type = match amut with
-          | Mutable   -> Predef.type_array
-          | Immutable -> Predef.type_iarray
+        let { array_type; alloc_mode; base_element_mode } =
+          array_info ~mutability:amut ~expected_mode
         in
         Array_comprehension amut,
-        container_type,
-        (fun tcomp -> Texp_array_comprehension (amut, tcomp)),
+        array_type,
+        base_element_mode,
+        (fun tcomp -> Texp_array_comprehension (amut, tcomp, alloc_mode)),
         comp
   in
   if !Clflags.principal then begin_def ();
@@ -7030,16 +7052,13 @@ and type_comprehension_expr
     end_def();
     generalize_structure element_ty;
   end;
+  let element_mode = expect_mode_cross env element_ty base_element_mode in
   let new_env, comp_clauses =
-    (* To understand why we don't provide modes here, see "What modes should
-       comprehensions use?", above *)
     type_comprehension_clauses
-      ~loc ~env ~comprehension_type ~container_type clauses
+      ~loc ~env ~comprehension_type ~element_mode ~container_type clauses
   in
   let comp_body =
-    (* To understand why comprehension bodies are checked at [mode_global], see
-       "What modes should comprehensions use?", above *)
-    type_expect new_env mode_global sbody (mk_expected element_ty)
+    type_expect new_env element_mode sbody (mk_expected element_ty)
   in
   re { exp_desc       = make_texp { comp_body ; comp_clauses }
      ; exp_loc        = loc
@@ -7049,21 +7068,23 @@ and type_comprehension_expr
      ; exp_env        = env }
 
 and type_comprehension_clauses
-      ~loc ~env ~comprehension_type ~container_type clauses =
+      ~loc ~env ~comprehension_type ~element_mode ~container_type clauses =
   List.fold_left_map
-    (type_comprehension_clause ~loc ~comprehension_type ~container_type)
+    (type_comprehension_clause
+       ~loc ~comprehension_type ~element_mode ~container_type)
     env
     clauses
 
 (* Calls [reset_pattern] *)
-and type_comprehension_clause ~loc ~comprehension_type ~container_type env
+and type_comprehension_clause
+      ~loc ~comprehension_type ~container_type ~element_mode env
   : Extensions.Comprehensions.clause -> _ = function
   | For bindings ->
       reset_pattern true;
       let tbindings =
         List.map
           (type_comprehension_binding
-             ~loc ~comprehension_type ~container_type ~env)
+             ~loc ~comprehension_type ~container_type ~element_mode ~env)
           bindings
       in
       let pvs = get_ref pattern_variables in
@@ -7090,18 +7111,25 @@ and type_comprehension_binding
       ~loc
       ~comprehension_type
       ~container_type
+      ~element_mode
       ~env
       Extensions.Comprehensions.{ pattern; iterator; attributes } =
   { comp_cb_iterator =
       type_comprehension_iterator
-        ~loc ~env ~comprehension_type ~container_type pattern iterator
+        ~loc
+        ~env
+        ~comprehension_type
+        ~container_type
+        ~element_mode
+        pattern
+        iterator
   ; comp_cb_attributes =
       attributes
   }
 
 (* Uses [pattern_variables] *)
 and type_comprehension_iterator
-      ~loc ~env ~comprehension_type ~container_type pattern
+      ~loc ~env ~comprehension_type ~container_type ~element_mode pattern
   : Extensions.Comprehensions.iterator -> _ = function
   | Range { start; stop; direction } ->
       let tbound ~explanation bound =
@@ -7127,12 +7155,12 @@ and type_comprehension_iterator
       let item_ty = newvar () in
       let seq_ty = container_type item_ty in
       let sequence =
-        (* To understand why we can currently only iterate over [mode_global]
-           (and not local) sequences, see "What modes should comprehensions
-           use?" in [type_comprehension_expr]*)
+        (* To understand why the sequences we iterate over have the same mode as
+           the resulting comprehension contents, see "What modes should
+           comprehensions use?" in [type_comprehension_expr]*)
         type_expect
           env
-          mode_global
+          element_mode
           seq
           (mk_expected
              ~explanation:(Comprehension_in_iterator comprehension_type)
@@ -7142,6 +7170,7 @@ and type_comprehension_iterator
        * this line. *)
       allow_modules := false;
       let pattern =
+        (* CR aspectorzabusky: HUH?? *)
         (* To understand why we can currently only provide [global] bindings for
            the contents of sequences comprehensions iterate over, see "What
            modes should comprehensions use?" in [type_comprehension_expr]*)

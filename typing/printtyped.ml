@@ -421,11 +421,13 @@ and expression i ppf x =
       line i ppf "Texp_array %a\n" fmt_mutable_flag amut;
       alloc_mode i ppf amode;
       list i expression ppf l;
-  | Texp_list_comprehension comp ->
+  | Texp_list_comprehension (comp, amode) ->
       line i ppf "Texp_list_comprehension\n";
+      alloc_mode i ppf amode;
       comprehension i ppf comp
-  | Texp_array_comprehension (amut, comp) ->
+  | Texp_array_comprehension (amut, comp, amode) ->
       line i ppf "Texp_array_comprehension %a\n" fmt_mutable_flag amut;
+      alloc_mode i ppf amode;
       comprehension i ppf comp
   | Texp_ifthenelse (e1, e2, eo) ->
       line i ppf "Texp_ifthenelse\n";

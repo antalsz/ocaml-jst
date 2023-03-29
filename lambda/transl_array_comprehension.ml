@@ -793,7 +793,13 @@ let body
     Lassign(index.id, index.var + l1))
 
 let comprehension
-      ~transl_exp ~scopes ~loc ~array_kind { comp_body; comp_clauses } =
+      ~transl_exp
+      ~scopes
+      ~loc
+      ~array_kind
+      ~alloc_mode
+      { comp_body; comp_clauses }
+  =
   let { array_sizing_info; array_size; make_comprehension } =
     clauses ~transl_exp ~scopes ~loc comp_clauses
   in

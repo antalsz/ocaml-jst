@@ -285,8 +285,8 @@ and expression_desc =
       expression * Types.alloc_mode * Longident.t loc * Types.label_description * expression
     (** [alloc_mode] translates to the [modify_mode] of the record *)
   | Texp_array of mutable_flag * expression list * Types.alloc_mode
-  | Texp_list_comprehension of comprehension
-  | Texp_array_comprehension of mutable_flag * comprehension
+  | Texp_list_comprehension of comprehension * Types.alloc_mode
+  | Texp_array_comprehension of mutable_flag * comprehension * Types.alloc_mode
   | Texp_ifthenelse of expression * expression * expression option
   | Texp_sequence of expression * expression
   | Texp_while of {
