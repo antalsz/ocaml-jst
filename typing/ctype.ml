@@ -2063,16 +2063,21 @@ let unification_layout_check ~reason env ty layout =
   | Skip_checks -> ()
 
 let is_always_global env ty =
-  (* We snapshot to keep this pure; see the mode crossing test that mentions
-     snapshotting for an example. *)
-  let snap = Btype.snapshot () in
-  let result =
-    check_type_layout
-      ~reason:Dummy_reason_result_ignored
-      env ty Layout.immediate64
+  let perform_check () =
+    Result.is_ok
+      (check_type_layout
+         ~reason:Dummy_reason_result_ignored
+         env ty Layout.immediate64)
   in
-  Btype.backtrack snap;
-  Result.is_ok result
+  if !Clflags.principal || Env.has_local_constraints env then
+    (* We snapshot to keep this pure; see the mode crossing test that mentions
+       snapshotting for an example. *)
+    let snap = Btype.snapshot () in
+    let result = perform_check () in
+    Btype.backtrack snap;
+    result
+  else
+    perform_check ()
 
 (* Recursively expand the head of a type.
    Also expand #-types.
