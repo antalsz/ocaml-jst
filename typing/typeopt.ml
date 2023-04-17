@@ -80,11 +80,10 @@ let is_always_gc_ignorable env ty =
        immediate64 types as gc_ignorable, because bytecode is intended to be
        platform independent. *)
     if !Clflags.native_code && Sys.word_size = 64
-    then Layout.immediate64
-    else Layout.immediate
+    then Layout.immediate64 ~creation:Gc_ignorable_check
+    else Layout.immediate ~creation:Gc_ignorable_check
   in
-  Result.is_ok
-    (Ctype.check_type_layout ~reason:V1_safety_check env ty layout)
+  Result.is_ok (Ctype.check_type_layout env ty layout)
 
 let maybe_pointer_type env ty =
   let ty = scrape_ty env ty in
@@ -263,7 +262,7 @@ let rec value_kind env ~loc ~visited ~depth ~num_nodes_visited ty
        This should be understood, but for now I'm doing the simple fall back
        thing so I can test the performance difference.
     *)
-    match Ctype.check_type_layout ~reason:V1_safety_check env scty Layout.value
+    match Ctype.check_type_layout env scty (Layout.value ~creation:V1_safety_check)
     with
     | Ok _ -> ()
     | Error _ ->
@@ -339,8 +338,8 @@ let rec value_kind env ~loc ~visited ~depth ~num_nodes_visited ty
     (* XXX layouts: this was missing - only caught in 4.14 merge.  Am I missing
        other cases. *)
     num_nodes_visited,
-    if Result.is_ok (Ctype.check_type_layout ~reason:V1_safety_check
-                       env scty Layout.immediate)
+    if Result.is_ok (Ctype.check_type_layout env scty
+                       (Layout.immediate ~creation:Value_kind))
     then Pintval else Pgenval
   | _ ->
     num_nodes_visited, Pgenval

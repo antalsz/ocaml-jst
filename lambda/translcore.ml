@@ -897,8 +897,9 @@ and transl_exp0 ~in_new_scope ~scopes e =
         match Env.find_value path e.exp_env with
         | {val_type; _} -> begin
             match
-              Ctype.check_type_layout ~reason:(Fixed_layout Probe)
-                e.exp_env (Ctype.correct_levels val_type) Layout.value
+              Ctype.check_type_layout
+                e.exp_env (Ctype.correct_levels val_type)
+                (Layout.value ~creation:Probe)
             with
             | Ok _ -> ()
             | Error _ -> raise (Error (e.exp_loc, Bad_probe_layout id))

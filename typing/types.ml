@@ -464,9 +464,12 @@ let kind_abstract ~layout = Type_abstract { layout }
    the match.  I implemented a similar optimization in Subst.norm, but was
    surprised to find basically no impact on artifact sizes. *)
 
-let kind_abstract_value = kind_abstract ~layout:Layout.value
-let kind_abstract_immediate = kind_abstract ~layout:Layout.immediate
-let kind_abstract_any = kind_abstract ~layout:Layout.any
+let kind_abstract_value ~creation =
+  kind_abstract ~layout:(Layout.value ~creation)
+let kind_abstract_immediate ~creation =
+  kind_abstract ~layout:(Layout.immediate ~creation)
+let kind_abstract_any ~creation =
+  kind_abstract ~layout:(Layout.any ~creation)
 
 let decl_is_abstract decl =
   match decl.type_kind with
@@ -480,8 +483,11 @@ let all_void layouts =
     | Const (Any | Immediate | Immediate64 | Value) | Var _ -> false)
     layouts
 
-let layout_bound_of_record_representation : record_representation -> _ =
-  let open Layout in function
+let layout_bound_of_record_representation : record_representation -> layout =
+  let open Layout in
+  let value = value ~creation:Boxed_record in
+  let immediate = immediate ~creation:Empty_record in
+  function
   | Record_unboxed l -> l
   | Record_float -> value
   | Record_inlined (tag,rep) -> begin
@@ -501,14 +507,16 @@ let layout_bound_of_variant_representation : variant_representation -> _ =
   let open Layout in function
   | Variant_unboxed l -> l
   | Variant_boxed layouts ->
-    if Array.for_all all_void layouts then immediate else value
-  | Variant_extensible -> value
+     if Array.for_all all_void layouts
+     then immediate ~creation:Empty_variant
+     else value ~creation:Boxed_variant
+  | Variant_extensible -> value ~creation:Extensible_variant
 
 (* should not mutate sorts *)
 let layout_bound_of_kind : _ type_kind -> _ =
   let open Layout in function
   | Type_abstract { layout } -> layout
-  | Type_open -> value
+  | Type_open -> value ~creation:Extensible_variant
   | Type_record (_,rep) -> layout_bound_of_record_representation rep
   | Type_variant (_, rep) -> layout_bound_of_variant_representation rep
 
